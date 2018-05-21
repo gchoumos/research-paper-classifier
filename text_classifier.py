@@ -1,34 +1,17 @@
 import pandas as pd
 import numpy as np
 import re
-import gensim
-import stop_words
-
-from gensim import corpora
-from gensim import models
-from gensim.corpora.dictionary import Dictionary
-from gensim.parsing.preprocessing import STOPWORDS
-from time import time
 import string
 import csv
-
-import nltk
-nltk.download()
-from nltk.stem.snowball import SnowballStemmer
-from nltk.stem.lancaster import LancasterStemmer
-
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.feature_extraction.text import TfidfTransformer
-
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.linear_model import SGDClassifier
-
-from sklearn.model_selection import GridSearchCV
-from sklearn.pipeline import Pipeline
-
 import logging
 logging.basicConfig(format='%(levelname)s : %(message)s', level=logging.INFO)
+
+from gensim.parsing.preprocessing import STOPWORDS
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfTransformer
+from sklearn.linear_model import SGDClassifier
+from sklearn.model_selection import GridSearchCV
+from sklearn.pipeline import Pipeline
 
 pd.options.mode.chained_assignment = None  # default='warn'
 
@@ -36,9 +19,6 @@ pd.options.mode.chained_assignment = None  # default='warn'
 df = pd.read_csv("node_information.csv")
 print(df.head())
 
-####################
-####################
-# Take care of the training target stuff
 # Read training data
 train_ids = list()
 y_train = list()
@@ -53,8 +33,6 @@ with open('train.csv', 'r') as f:
             print("t[0]: ", t[0])
             print("t[1][:-1]: ", t[1][:-1]);
             i += 1
-#####################
-#####################
 
 train_abstracts = list()
 train_titles = list()
@@ -122,7 +100,7 @@ ALLabstitles_j[:2]
 ########
 # PIPELINE
 ########
-# #############################################################################
+##############################################################################
 # Define a pipeline combining a text feature extractor with a simple
 # classifier
 pipeline = Pipeline([
@@ -200,7 +178,7 @@ y_pred = grid_search.predict_proba(TESTabstitles_j)
 # Write predictions to a file - LOGISTIC
 with open('sample_submission.csv', 'w') as csvfile:
     writer = csv.writer(csvfile, delimiter=',')
-    lst = text_clf.classes_.tolist()
+    lst = grid_search.classes_.tolist()
     lst.insert(0, "Article")
     writer.writerow(lst)
     for i,test_id in enumerate(test_ids):
