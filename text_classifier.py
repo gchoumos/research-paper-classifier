@@ -8,94 +8,43 @@ logging.basicConfig(format='%(levelname)s : %(message)s', level=logging.INFO)
 
 from gensim.parsing.preprocessing import STOPWORDS
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
-from sklearn.linear_model import SGDClassifier
+from sklearn.linear_model import SGDClassifier, LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
+from sklearn.metrics import make_scorer, log_loss
+
+from sklearn.neural_network import MLPClassifier
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.svm import NuSVC
+from sklearn.tree import DecisionTreeClassifier
 
 pd.options.mode.chained_assignment = None  # default='warn'
 
-# Load data about each article in a dataframe
-df = pd.read_csv("node_information.csv")
-print(df.head())
 
-# Read training data
-train_ids = list()
+train   = pd.read_csv("datasets/train/abstitauth.csv",header=None)
+test    = pd.read_csv("datasets/test/abstitauth.csv",header=None)
+
+# train_abs = pd.read_csv("datasets/train/abstracts.csv",header=None)
+# train_titles = pd.read_csv("datasets/train/titles.csv",header=None)
+
+# test_abs = pd.read_csv("datasets/test/abstracts.csv",header=None)
+# test_titles = pd.read_csv("datasets/test/titles.csv",header=None)
+
+# Get the labels from the train dataset
 y_train = list()
 with open('train.csv', 'r') as f:
     next(f)
     i = 0
     for line in f:
         t = line.split(',')
-        train_ids.append(t[0])
         y_train.append(t[1][:-1])
-        if i<5:
-            print("t[0]: ", t[0])
-            print("t[1][:-1]: ", t[1][:-1]);
-            i += 1
 
-train_abstracts = list()
-train_titles = list()
-train_authors = list()
-for i in train_ids:
-    train_abstracts.append(df.loc[df['id'] == int(i)]['abstract'].iloc[0])
-    train_titles.append(df.loc[df['id'] == int(i)]['title'].iloc[0])
-    train_authors.append(df.loc[df['id'] == int(i)]['authors'].iloc[0])
+labels = np.unique(y_train)
 
-#ALLabstracts = pd.concat([x['abstract'] for x in [df]])
-ALLabstracts = pd.Series(v for v in train_abstracts)
-
-#ALLtitles = pd.concat([x['title'] for x in [df]])
-ALLtitles = pd.Series(v for v in train_titles)
-
-ALLabstracts.head(5)
-ALLtitles.head(5)
-
-#ALLauthors = pd.concat([x['authors'] for x in [df]])
-ALLauthors = pd.Series(v for v in train_authors)
-
-rm_punct = string.punctuation.replace('-','')
-RE_PUNCTUATION = '|'.join([re.escape(x) for x in rm_punct])
-
-ALLabstracts = ALLabstracts.str.replace(RE_PUNCTUATION,' ')
-ALLtitles = ALLtitles.str.replace(RE_PUNCTUATION,' ')
-ALLauthors = ALLauthors.str.replace(RE_PUNCTUATION,' ')
-
-ALLabstracts_split = ALLabstracts.str.split()
-ALLtitles_split = ALLtitles.str.split()
-ALLauthors_split = ALLauthors.str.split()
-
-stopwords = set(STOPWORDS)
-ALLabstracts_split = ALLabstracts_split.apply(lambda tokens: [token for token in tokens if token not in stopwords])
-ALLabstracts_split.head(10)
-
-ALLtitles_split = ALLtitles_split.apply(lambda tokens: [token for token in tokens if token not in stopwords])
-
-ALLabstracts_split = ALLabstracts_split.apply(lambda tokens: [token for token in tokens if len(token)>1])
-ALLtitles_split = ALLtitles_split.apply(lambda tokens: [token for token in tokens if len(token)>1])
-
-# Replace first all the NaNs with a character as they keep getting in the way
-ALLauthors_split = ['n' if x is np.nan else x for x in ALLauthors_split]
-ALLauthors_split = ALLauthors.str.split()
-
-for i in range(len(ALLauthors_split)):
-    if ALLauthors_split[i] != ALLauthors_split[i]:
-        ALLauthors_split[i] = ['n']
-
-ALLauthors_split = ALLauthors_split.apply(lambda tokens: [token for token in tokens if len(token)>1])
-
-#########################################################
-#########################################################
-
-ALLauthors_split.head(5)
-ALLtitles_split.head(5)
-
-## I'll try merging the abstracts and titles
-ALLabstitles = [a + b for a, b in zip(ALLabstracts_split, ALLtitles_split)]
-ALLabstitles_j = [' '.join(x) for x in ALLabstitles]
-
-# This is now a list of lists. To see the first 2 let's say entries
-ALLabstitles_j[:2]
 
 ########
 # PIPELINE
@@ -105,25 +54,63 @@ ALLabstitles_j[:2]
 # classifier
 pipeline = Pipeline([
     ('vect', CountVectorizer(decode_error='ignore',stop_words='english')),
-    ('tfidf', TfidfTransformer()),
-    ('clf', SGDClassifier()),
+    ('tfidf', TfidfTransformer(norm='l2')),
+    # ('sgd', SGDClassifier(loss='log',max_iter=5,loss='l1',tol=None)),
+    # ('mnb', MultinomialNB()),
+    ('logr', LogisticRegression()),
+    # ('rfc', RandomForestClassifier()),
+    # ('knn', KNeighborsClassifier()),
+    # ('NuSVC', NuSVC(probability=True)), # This one SUCKS
+    # ('dtc', DecisionTreeClassifier()),
 ])
+
+# clf = MLPClassifier(  hidden_layer_sizes=(100, ),
+#                             activation='relu',
+#                             solver='adam',
+#                             alpha=0.0001,
+#                             momentum=0.9,
+#                             verbose=True
+#                         )
 
 # uncommenting more parameters will give better exploring power but will
 # increase processing time in a combinatorial way
 parameters = {
-    'vect__min_df': (0, 0.1),
-    'vect__max_df': (0.5, 0.8, 1.0),
-    'vect__ngram_range': ((1, 1), (1, 2)),  # unigrams or bigrams
-    'tfidf__norm': (None, 'l1', 'l2'),
-    'clf__loss': ('log','modified_huber'),
-    'clf__alpha': (0.00001, 0.000001),
-    'clf__penalty': ('l2', 'elasticnet'),
+    'vect__min_df': (0, 0.01, 0.1),
+    'vect__max_df': (0.5, 0.6, 0.7),
+    'vect__ngram_range': ((1,1),(1,2)),
+    # 'mnb__alpha': (0.0001,0.001,0.01,0.1,1),
+    'logr__penalty': ('l1','l2'),
+    'logr__tol': (0.0001,0.00001),
+    # 'logr__C': (1.0,0.8,0.5,0.1), # defaults to 1.0 which performs way better
+    # 'logr__class_weight': (None, 'balanced'), # defaults to None which performs way better than balanced
+    # 'clf__activation': ('relu','logistic'),
+    # 'clf__solver': ('adam','sgd'),
+    # 'clf__alpha': (0.00001, 0.000001, 0.0000001),
+    # 'clf__penalty': ('l2', 'elasticnet'),
+    # 'clf__momentum': (0.7,0.9),
+    # 'rfc__n_estimators': (10,4,8),
+    # 'rfc__criterion': ('gini','entropy'),
+    # 'knn__n_neighbors': (5,25,101),
+    # 'knn__weights': ('uniform','distance'),
+    # 'knn__p': (1,2),
+    # 'NuSVC__nu': (0.01,0.4),
+    # 'NuSVC__kernel': ('sigmoid','rbf'),
+    # 'dtc__criterion': ('gini','entropy'),
+    # 'dtc__class_weight': (None,'balanced')
 }
 
-grid_search = GridSearchCV(pipeline, parameters, n_jobs=-1, verbose=1)
+log_loss_scorer = make_scorer(log_loss, greater_is_better=False, needs_proba=True)
+grid_search = GridSearchCV(pipeline, parameters, n_jobs=-1, verbose=10,scoring=log_loss_scorer)
 
-grid_search.fit(ALLabstitles_j, y_train)
+
+# Get the input and output in the appropriate format 
+x_train = [x[0] for x in train.values]
+x_test  = [x[0] for x in test.values]
+
+# x_train = np.dstack([train_abs,train_titles])
+# x_test = np.dstack([test_abs,test_titles])
+
+grid_search.fit(x_train, y_train)
 
 print("Best score: %0.3f" % grid_search.best_score_)
 print("Best parameters set:")
@@ -131,70 +118,27 @@ best_parameters = grid_search.best_estimator_.get_params()
 for param_name in sorted(parameters.keys()):
     print("\t%s: %r" % (param_name, best_parameters[param_name]))
 
-#######
-# Until here all good
-#######
 
-#########################################################
-#########################################################
-## I want to do the same for the test data now.
-#########################################################
-#########################################################
-# Read test data
+####################
+# Get test IDs too #
+####################
 test_ids = list()
 with open('test.csv', 'r') as f:
     next(f)
     for line in f:
         test_ids.append(line[:-2])
 
-# Extract the abstract of each test article from the dataframe
-n_test = len(test_ids)
-test_abstracts = list()
-test_titles = list()
-for i in test_ids:
-    test_abstracts.append(df.loc[df['id'] == int(i)]['abstract'].iloc[0])
-    test_titles.append(df.loc[df['id'] == int(i)]['title'].iloc[0])
 
-TESTabstracts = pd.Series(v for v in test_abstracts)
-TESTtitles = pd.Series(v for v in test_titles)
+y_pred = grid_search.predict_proba(x_test)
 
-TESTabstracts = TESTabstracts.str.replace(RE_PUNCTUATION,' ')
-TESTtitles = TESTtitles.str.replace(RE_PUNCTUATION,' ')
-
-TESTabstracts_split = TESTabstracts.str.split()
-TESTtitles_split = TESTtitles.str.split()
-
-TESTabstracts_split = TESTabstracts_split.apply(lambda tokens: [token for token in tokens if token not in stopwords])
-TESTtitles_split = TESTtitles_split.apply(lambda tokens: [token for token in tokens if token not in stopwords])
-
-TESTabstracts_split = TESTabstracts_split.apply(lambda tokens: [token for token in tokens if len(token)>1])
-TESTtitles_split = TESTtitles_split.apply(lambda tokens: [token for token in tokens if len(token)>1])
-
-TESTabstitles = [a + b for a, b in zip(TESTabstracts_split, TESTtitles_split)]
-TESTabstitles_j = [' '.join(x) for x in TESTabstitles]
-
-y_pred = grid_search.predict_proba(TESTabstitles_j)
-
-# Write predictions to a file - LOGISTIC
+# Write predictions to a file
 with open('sample_submission.csv', 'w') as csvfile:
     writer = csv.writer(csvfile, delimiter=',')
     lst = grid_search.classes_.tolist()
+    # lst = clf.classes_.tolist()
     lst.insert(0, "Article")
     writer.writerow(lst)
     for i,test_id in enumerate(test_ids):
         lst = y_pred[i,:].tolist()
         lst.insert(0, test_id)
         writer.writerow(lst)
-
-
-
-
-
-
-
-
-
-
-
-
-
