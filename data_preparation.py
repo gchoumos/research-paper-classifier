@@ -60,6 +60,10 @@ ALLtitles_split    = pd.Series([[token for token in title if token not in stopwo
 ALLabstracts_split = pd.Series([[token for token in abstract if len(token)>1] for abstract in ALLabstracts_split])
 ALLtitles_split    = pd.Series([[token for token in title if len(token)>1] for title in ALLtitles_split])
 
+# Remove all the digit words
+ALLabstracts_split = pd.Series([[token for token in abstract if not token.isdigit()] for abstract in ALLabstracts_split])
+ALLtitles_split = pd.Series([[token for token in title if not token.isdigit()] for title in ALLtitles_split])
+
 # Replace first all the NaNs with a character as they keep getting in the way
 ALLauthors_split = pd.Series([[] if x is np.nan else x for x in ALLauthors_split])
 # Then remove the single characters from the authors as well
@@ -67,6 +71,9 @@ ALLauthors_split = pd.Series([[token for token in author if len(token)>1] for au
 # We can also remove the stopwords from the authors. It will remove common words such us "of"
 # that appear as part of "University of X" cases.
 ALLauthors_split = pd.Series([[token for token in author if token not in stopwords] for author in ALLauthors_split])
+# also remove the of word from the authors (University of N)
+ALLauthors_split = pd.Series([[token for token in author if token != 'of'] for author in ALLauthors_split])
+
 
 ##################################
 
@@ -125,11 +132,19 @@ TESTtitles_split    = pd.Series([[token for token in title if token not in stopw
 TESTabstracts_split = pd.Series([[token for token in abstract if len(token)>1] for abstract in TESTabstracts_split])
 TESTtitles_split    = pd.Series([[token for token in title if len(token)>1] for title in TESTtitles_split])
 
+# Remove the digit words
+TESTabstracts_split = pd.Series([[token for token in abstract if not token.isdigit()] for abstract in TESTabstracts_split])
+TESTtitles_split    = pd.Series([[token for token in title if not token.isdigit()] for title in TESTtitles_split])
+
+
 # Replace first all the NaNs with a character as they keep getting in the way
 TESTauthors_split = pd.Series([[] if x is np.nan else x for x in TESTauthors_split])
 # Then remove the single characters from the authors as well
 TESTauthors_split = pd.Series([[token for token in author if len(token)>1] for author in TESTauthors_split])
 TESTauthors_split = pd.Series([[token for token in author if token not in stopwords] for author in TESTauthors_split])
+
+# also remove the of word from the authors (University of N)
+TESTauthors_split = pd.Series([[token for token in author if token != 'of'] for author in TESTauthors_split])
 
 TESTabstitles       = pd.Series([a+b for a,b in zip(TESTabstracts_split, TESTtitles_split)])
 TESTabstitlesauth   = pd.Series([a+b+c for a,b,c in zip(TESTabstracts_split,TESTtitles_split,TESTauthors_split)])
