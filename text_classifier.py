@@ -110,34 +110,42 @@ pipeline = Pipeline([
 #################
 # FEATURE UNION #
 #################
+
+# This is painful because transform (feature selection) using estimators has been
+# deprecated in scikit learn. So we are going to go with SelectFromModel
+logr_abs = LogisticRegression(penalty='l2',tol=1e-05)
+logr_tit = LogisticRegression(penalty='l2',tol=1e-05)
+logr_aut = LogisticRegression(penalty='l2',tol=1e-05)
+
 pipeline = Pipeline([
+    ('abstracttitleauthor', AbstractTitleAuthorExtractor()),
 
     # Use FeatureUnion to combine the features from abstracts, titles and authors
     ('union', FeatureUnion(
         transformer_list=[
 
-            # Pipeline for pulling features from authors
-            ('abstract', Pipeline([
-                ('abs_select', train_authors.values),
-                ('vect', CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.03, min_df=0)),
-                ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
-                ('logr', LogisticRegression(penalty='l2',tol=1e-05)),
-            ])),
-
             # Pipeline for pulling features from abstracts
             ('abstract', Pipeline([
-                ('abs_select', [t[0] for t in train_abs.values]),
+                ('selector', ItemSelector(key='abstract')),
                 ('vect', CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.6, min_df=0.001)),
                 ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
-                ('logr', LogisticRegression(penalty='l2',tol=1e-05)),
+                ('sfm_abs', SelectFromModel(logr_abs)),
             ])),
 
             # Pipeline for pulling features from titles
-            ('abstract', Pipeline([
-                ('abs_select', train_titles.values),
+            ('title', Pipeline([
+                ('selector', ItemSelector(key='title')),
                 ('vect', CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.18, min_df=0)),
                 ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
-                ('logr', LogisticRegression(penalty='l2',tol=1e-05)),
+                ('logr', SelectFromModel(logr_tit)),
+            ])),
+
+            # Pipeline for pulling features from authors
+            ('author', Pipeline([
+                ('selector', ItemSelector(key='author')),
+                ('vect', CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.03, min_df=0)),
+                ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
+                ('logr', SelectFromModel(logr_aut)),
             ])),
 
         ],
