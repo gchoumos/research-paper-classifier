@@ -63,10 +63,10 @@ class TextStats(BaseEstimator, TransformerMixin):
     def fit(self, x, y=None):
         return self
 
-    def transform(self, posts):
-        return [{'length': len(text),
-                 'num_sentences': text.count('.')}
-                for text in posts]
+    def transform(self, lines):
+        return [{'length': len(line),
+                 'num_words': line.count(' ')}
+                for line in lines]
 
 
 class AbstractTitleAuthorExtractor(BaseEstimator, TransformerMixin):

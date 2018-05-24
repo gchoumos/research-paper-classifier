@@ -9,6 +9,7 @@ logging.basicConfig(format='%(levelname)s : %(message)s', level=logging.INFO)
 from gensim.parsing.preprocessing import STOPWORDS
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction import DictVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.feature_selection import SelectFromModel
 from sklearn.linear_model import SGDClassifier, LogisticRegression
@@ -20,7 +21,7 @@ from sklearn.metrics import make_scorer, log_loss
 
 from sklearn.neural_network import MLPClassifier
 from sklearn.naive_bayes import MultinomialNB
-from sklearn.svm import NuSVC
+from sklearn.svm import NuSVC, SVC
 from sklearn.tree import DecisionTreeClassifier
 
 import gensim
@@ -137,7 +138,7 @@ pipeline = Pipeline([
                 ('selector', ItemSelector(key='title')),
                 ('vect', CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.18, min_df=0)),
                 ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
-                ('logr', SelectFromModel(logr_tit)),
+                ('sfm_tit', SelectFromModel(logr_tit)),
             ])),
 
             # Pipeline for pulling features from authors
@@ -145,24 +146,31 @@ pipeline = Pipeline([
                 ('selector', ItemSelector(key='author')),
                 ('vect', CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.03, min_df=0)),
                 ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
-                ('logr', SelectFromModel(logr_aut)),
+                ('sfm_aut', SelectFromModel(logr_aut)),
+            ])),
+
+            # Pipeline for text stats
+            ('abs_stats', Pipeline([
+                ('selector', ItemSelector(key='abstract')),
+                ('stats', TextStats()),  # returns a list of dicts
+                ('vect_st', DictVectorizer()),
             ])),
 
         ],
 
         # weight components in FeatureUnion
-        # transformer_weights={
-        #     'subject': 0.8,
-        #     'body_bow': 0.5,
-        #     'body_stats': 1.0,
-        # },
+        #transformer_weights={
+        #    'abstract': 1.0,
+        #    'title': 2.0,
+        #    'author': 0.5,
+        #},
     )),
 
     # Use Logistic Regression again on the combined features
+    #('sgd', SGDClassifier(loss='modified_huber')),
     ('logr', LogisticRegression(penalty='l2', tol=1e-05)),
-
-    # Use a SVC classifier on the combined features
-    # ('svc', SVC(kernel='linear')),
+    # Use an SVC classifier on the combined features
+    #('svc', SVC(verbose=True,kernel='linear',probability=True)),
 ])
 
 # vect_abs = CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.6, min_df=0.001)
@@ -183,7 +191,7 @@ pipeline = Pipeline([
 
 # uncommenting more parameters will give better exploring power but will
 # increase processing time in a combinatorial way
-# parameters = {
+parameters = {
 #     'vect__min_df': (0, 0.00001),
 #     'vect__max_df': (0.2, 0.22, 0.25, 0.28, 0.3, 0.6, 0.65),
 #     # 'vect__ngram_range': ((1,1),(1,2),(1,3)),
@@ -208,13 +216,13 @@ pipeline = Pipeline([
 #     # 'NuSVC__kernel': ('sigmoid','rbf'),
 #     # 'dtc__criterion': ('gini','entropy'),
 #     # 'dtc__class_weight': (None,'balanced')
-# }
+}
 
-#log_loss_scorer = make_scorer(log_loss, greater_is_better=False, needs_proba=True)
-#grid_search = GridSearchCV(pipeline, parameters, n_jobs=-1, verbose=10,scoring=log_loss_scorer)
+log_loss_scorer = make_scorer(log_loss, greater_is_better=False, needs_proba=True)
+grid_search = GridSearchCV(pipeline, parameters, n_jobs=1, verbose=10,scoring=log_loss_scorer)
 
 # logr = LogisticRegression(penalty='l2',tol=1e-05)
-pipeline.fit(all_train,y_train)
+grid_search.fit(all_train,y_train)
 
 # Get the input and output in the appropriate format 
 # x_train = [x[0] for x in train.values]
@@ -266,14 +274,14 @@ with open('test.csv', 'r') as f:
         test_ids.append(line[:-2])
 
 
-#y_pred = grid_search.predict_proba(x_test)
-y_pred = pipeline.predict_proba(x_test)
+y_pred = grid_search.predict_proba(x_test)
+#y_pred = pipeline.predict_proba(x_test)
 
 # Write predictions to a file
 with open('sample_submission.csv', 'w') as csvfile:
     writer = csv.writer(csvfile, delimiter=',')
-    #lst = grid_search.classes_.tolist()
-    lst = pipeline.classes_.tolist()
+    lst = grid_search.classes_.tolist()
+    #lst = pipeline.classes_.tolist()
     lst.insert(0, "Article")
     writer.writerow(lst)
     for i,test_id in enumerate(test_ids):
