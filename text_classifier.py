@@ -10,6 +10,7 @@ from gensim.parsing.preprocessing import STOPWORDS
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
+from sklearn.feature_selection import SelectFromModel
 from sklearn.linear_model import SGDClassifier, LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier
@@ -25,7 +26,7 @@ from sklearn.tree import DecisionTreeClassifier
 import gensim
 from gensim.models import Word2Vec, Doc2Vec
 
-from feature_union_sklearn import ItemSelector, TextStats, SubjectBodyExtractor
+from feature_union_sklearn import ItemSelector, TextStats, AbstractTitleAuthorExtractor
 
 import pdb
 
@@ -39,6 +40,11 @@ def read_corpus(docs, tokens_only=False):
 
 pd.options.mode.chained_assignment = None  # default='warn'
 
+def get_csv(filename):
+    with open(filename) as csvfile:
+        reader = csv.reader(csvfile)
+        result = list(reader)
+    return result
 
 # train = pd.read_csv("datasets/train/abstitauth.csv",header=None)
 # test = pd.read_csv("datasets/test/abstitauth.csv",header=None)
@@ -46,7 +52,16 @@ pd.options.mode.chained_assignment = None  # default='warn'
 train_abs = pd.read_csv("datasets/train/abstracts.csv",header=None)
 train_titles = pd.read_csv("datasets/train/titles.csv",header=None)
 train_authors = pd.read_csv("datasets/train/authors.csv", header=None)
-a = make_union(train_abs,train_titles,train_authors)
+#train_abs = np.array(get_csv("datasets/train/abstracts.csv"))
+#train_titles = np.array(get_csv("datasets/train/titles.csv"))
+#train_authors = np.array(get_csv("datasets/train/authors.csv"))
+
+#pdb.set_trace()
+
+all_train = np.dstack([train_abs,train_titles,train_authors])
+all_train = np.array([t[0] for t in all_train])
+
+#pdb.set_trace()
 
 test_abs = pd.read_csv("datasets/test/abstracts.csv",header=None)
 test_titles = pd.read_csv("datasets/test/titles.csv",header=None)
@@ -191,7 +206,7 @@ pipeline = Pipeline([
 #grid_search = GridSearchCV(pipeline, parameters, n_jobs=-1, verbose=10,scoring=log_loss_scorer)
 
 # logr = LogisticRegression(penalty='l2',tol=1e-05)
-pipeline.fit(a)
+pipeline.fit(all_train,y_train)
 
 # Get the input and output in the appropriate format 
 # x_train = [x[0] for x in train.values]
@@ -215,12 +230,13 @@ pipeline.fit(a)
 # x_train_emb = [doc_embeddings.infer_vector(x) for x in vocab]
 # y_train_emb = [doc_embeddings.infer_vector(y) for y in vocab_y]
 
-# x_train = np.dstack([tr_abs,tr_tit,tr_aut])[0]
-# x_test = np.dstack([test_abs,test_titles,test_authors])
+#x_train = np.dstack([tr_abs,tr_tit,tr_aut])
+x_test = np.dstack([test_abs,test_titles,test_authors])
+x_test = np.array([t[0] for t in x_test])
 
 # x_train = np.dstack([train_abs,train_titles])
 # x_test = np.dstack([test_abs,test_titles])
-pdb.set_trace()
+#pdb.set_trace()
 # logr.fit(tr_abs,y_train)
 #grid_search.fit(x_train,y_train)
 #grid_search.fit(x_train_emb, y_train)
@@ -243,13 +259,13 @@ with open('test.csv', 'r') as f:
 
 
 #y_pred = grid_search.predict_proba(x_test)
-y_pred = logr.predict_proba(x_test)
+y_pred = pipeline.predict_proba(x_test)
 
 # Write predictions to a file
 with open('sample_submission.csv', 'w') as csvfile:
     writer = csv.writer(csvfile, delimiter=',')
     #lst = grid_search.classes_.tolist()
-    lst = logr.classes_.tolist()
+    lst = pipeline.classes_.tolist()
     lst.insert(0, "Article")
     writer.writerow(lst)
     for i,test_id in enumerate(test_ids):

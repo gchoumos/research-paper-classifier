@@ -75,6 +75,16 @@ ALLauthors_split = pd.Series([[token for token in author if token not in stopwor
 ALLauthors_split = pd.Series([[token for token in author if token != 'of'] for author in ALLauthors_split])
 
 
+################################################
+# ADDED at 24/5 to fix the feature union stuff #
+################################################
+ALLabstracts_split_j = pd.Series([' '.join(x) for x in ALLabstracts_split])
+ALLtitles_split_j = pd.Series([' '.join(x) for x in ALLtitles_split])
+ALLauthors_split_j = pd.Series([' '.join(x) for x in ALLauthors_split])
+#######
+# END #
+#######
+
 ##################################
 
 ALLabstracts_split.head(2)
@@ -151,16 +161,26 @@ TESTabstitlesauth   = pd.Series([a+b+c for a,b,c in zip(TESTabstracts_split,TEST
 TESTabstitles_j     = pd.Series([' '.join(x) for x in TESTabstitles])
 TESTabstitlesauth_j = pd.Series([' '.join(x) for x in TESTabstitlesauth])
 
+################################################
+# ADDED at 24/5 to fix the feature union stuff #
+################################################
+TESTabstracts_split_j = pd.Series([' '.join(x) for x in TESTabstracts_split])
+TESTtitles_split_j = pd.Series([' '.join(x) for x in TESTtitles_split])
+TESTauthors_split_j = pd.Series([' '.join(x) for x in TESTauthors_split])
+#######
+# END #
+#######
+
 
 #####################
 # Save the datasets #
 #####################
-ALLabstracts_split.to_csv("datasets/train/abstracts.csv",index=False)
-ALLtitles_split.to_csv("datasets/train/titles.csv",index=False)
-ALLauthors_split.to_csv("datasets/train/authors.csv",index=False)
+ALLabstracts_split_j.to_csv("datasets/train/abstracts.csv",index=False)
+ALLtitles_split_j.to_csv("datasets/train/titles.csv",index=False)
+ALLauthors_split_j.to_csv("datasets/train/authors.csv",index=False)
 ALLabstitlesauth_j.to_csv("datasets/train/abstitauth.csv",index=False)
 
-TESTabstracts_split.to_csv("datasets/test/abstracts.csv",index=False)
-TESTtitles_split.to_csv("datasets/test/titles.csv",index=False)
-TESTauthors_split.to_csv("datasets/test/authors.csv",index=False)
+TESTabstracts_split_j.to_csv("datasets/test/abstracts.csv",index=False)
+TESTtitles_split_j.to_csv("datasets/test/titles.csv",index=False)
+TESTauthors_split_j.to_csv("datasets/test/authors.csv",index=False)
 TESTabstitlesauth_j.to_csv("datasets/test/abstitauth.csv",index=False)
