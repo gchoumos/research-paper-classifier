@@ -63,9 +63,12 @@ class TextStats(BaseEstimator, TransformerMixin):
     def fit(self, x, y=None):
         return self
 
+    # Number of Digit words?
     def transform(self, lines):
         return [{'length': len(line),
-                 'num_words': line.count(' ')}
+                 'num_words': line.count(' '),
+                 'num_digits': sum(c.isdigit() for c in line),
+                 'words_dash': len([w2 for w2 in line if '-' in w2])}
                 for line in lines]
 
 

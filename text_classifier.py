@@ -149,13 +149,21 @@ pipeline = Pipeline([
                 ('sfm_aut', SelectFromModel(logr_aut)),
             ])),
 
-            # Pipeline for text stats
+            # Pipeline for abstract stats
             ('abs_stats', Pipeline([
                 ('selector', ItemSelector(key='abstract')),
                 ('stats', TextStats()),  # returns a list of dicts
-                ('vect_st', DictVectorizer()),
+                ('vect_abs_stats', DictVectorizer()),
             ])),
 
+            # Pipeline for title stats
+            #('tit_stats', Pipeline([
+            #    ('selector', ItemSelector(key='title')),
+            #    ('stats', TextStats()),  # returns a list of dicts
+            #    ('vect_titles_stats', DictVectorizer()),
+            #])),
+
+    
         ],
 
         # weight components in FeatureUnion
@@ -168,9 +176,9 @@ pipeline = Pipeline([
 
     # Use Logistic Regression again on the combined features
     #('sgd', SGDClassifier(loss='modified_huber')),
-    ('logr', LogisticRegression(penalty='l2', tol=1e-05)),
+    ('logr', LogisticRegression(penalty='l2',tol=1e-5)),
     # Use an SVC classifier on the combined features
-    #('svc', SVC(verbose=True,kernel='linear',probability=True)),
+    #('svc', SVC(verbose=False,kernel='linear',probability=True)),
 ])
 
 # vect_abs = CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.6, min_df=0.001)
@@ -219,7 +227,7 @@ parameters = {
 }
 
 log_loss_scorer = make_scorer(log_loss, greater_is_better=False, needs_proba=True)
-grid_search = GridSearchCV(pipeline, parameters, n_jobs=1, verbose=10,scoring=log_loss_scorer)
+grid_search = GridSearchCV(pipeline, parameters, n_jobs=-1, verbose=10,scoring=log_loss_scorer)
 
 # logr = LogisticRegression(penalty='l2',tol=1e-05)
 grid_search.fit(all_train,y_train)
@@ -257,11 +265,11 @@ x_test = np.array([t[0] for t in x_test])
 #grid_search.fit(x_train,y_train)
 #grid_search.fit(x_train_emb, y_train)
 
-# print("Best score: %0.3f" % grid_search.best_score_)
-# print("Best parameters set:")
-# best_parameters = grid_search.best_estimator_.get_params()
-# for param_name in sorted(parameters.keys()):
-#     print("\t%s: %r" % (param_name, best_parameters[param_name]))
+print("Best score: %0.3f" % grid_search.best_score_)
+print("Best parameters set:")
+best_parameters = grid_search.best_estimator_.get_params()
+for param_name in sorted(parameters.keys()):
+    print("\t%s: %r" % (param_name, best_parameters[param_name]))
 
 
 ####################

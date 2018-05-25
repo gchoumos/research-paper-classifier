@@ -4,12 +4,47 @@
         - I believe we should also remove the 'University' word as it appears
           in a lot of documents.
 """
-
 import pandas as pd
 import numpy as np
 import string
 import re
 from gensim.parsing.preprocessing import STOPWORDS
+
+def write_to_file(data,filename):
+    with open(filename,"w") as f:
+        for l in data:
+            f.write(l if len(l)>0 else "\"\"")
+            f.write("\n")
+
+stopwords = set(STOPWORDS)
+# We'll use this to replace the punctuation with space apart from the dashes
+punctuation = '|'.join([re.escape(x) for x in string.punctuation.replace('-','')])
+
+# rm_sw:    Remove stopwords
+# rm_smw:   Remove small words
+# rm_dg:    Remove words that consist of digits only
+def transform_data(dataset, stopwords, punct, rm_sw=True, rm_smw=True, rm_dg=True):
+    # Convert to Pandas series
+    dataset = pd.Series(d for d in dataset)
+    # Replace the punctuation with space apart from the dashes 
+    dataset = dataset.str.replace(punct,' ')
+    # Split it
+    dataset = dataset.str.split()
+    # Are there any Nan Values? Replace them
+    dataset = pd.Series([[] if x is np.nan else x for x in dataset])
+    # Remove the stopwords
+    if rm_sw == True:
+        dataset = pd.Series([[word for word in d if word not in stopwords] for d in dataset])
+    # Remove words with length 1 (many occured after the punctuation removal)
+    if rm_smw == True:
+        dataset = pd.Series([[word for word in d if len(word)>1] for d in dataset])
+    # Remove digit-only words:
+    if rm_dg == True:
+        dataset = pd.Series([[word for word in d if not word.isdigit()] for d in dataset])
+    # This was needed to make the dataset compatible with the FeatureUnion format
+    dataset = [' '.join(x) for x in dataset]
+
+    return dataset
 
 # Load data about each article in a dataframe
 df = pd.read_csv("node_information.csv")
@@ -34,80 +69,11 @@ for i in train_ids:
     train_titles.append(df.loc[df['id'] == int(i)]['title'].iloc[0])
     train_authors.append(df.loc[df['id'] == int(i)]['authors'].iloc[0])
 
-ALLabstracts = pd.Series(v for v in train_abstracts)
-ALLtitles    = pd.Series(v for v in train_titles)
-ALLauthors   = pd.Series(v for v in train_authors)
+ALLabstracts = transform_data(train_abstracts,stopwords,punctuation)
+ALLtitles    = transform_data(train_titles,stopwords,punctuation)
+ALLauthors   = transform_data(train_authors,stopwords,punctuation)
 
-ALLabstracts.head(5)
-ALLtitles.head(5)
-ALLauthors.head(5)
-
-rm_punct = string.punctuation.replace('-','')
-RE_PUNCTUATION = '|'.join([re.escape(x) for x in rm_punct])
-
-ALLabstracts = ALLabstracts.str.replace(RE_PUNCTUATION,' ')
-ALLtitles    = ALLtitles.str.replace(RE_PUNCTUATION,' ')
-ALLauthors   = ALLauthors.str.replace(RE_PUNCTUATION,' ')
-
-ALLabstracts_split = ALLabstracts.str.split()
-ALLtitles_split    = ALLtitles.str.split()
-ALLauthors_split   = ALLauthors.str.split()
-
-stopwords = set(STOPWORDS)
-ALLabstracts_split = pd.Series([[token for token in abstract if token not in stopwords] for abstract in ALLabstracts_split])
-ALLtitles_split    = pd.Series([[token for token in title if token not in stopwords] for title in ALLtitles_split])
-
-ALLabstracts_split = pd.Series([[token for token in abstract if len(token)>1] for abstract in ALLabstracts_split])
-ALLtitles_split    = pd.Series([[token for token in title if len(token)>1] for title in ALLtitles_split])
-
-# Remove all the digit words
-ALLabstracts_split = pd.Series([[token for token in abstract if not token.isdigit()] for abstract in ALLabstracts_split])
-ALLtitles_split = pd.Series([[token for token in title if not token.isdigit()] for title in ALLtitles_split])
-
-# Replace first all the NaNs with a character as they keep getting in the way
-ALLauthors_split = pd.Series([[] if x is np.nan else x for x in ALLauthors_split])
-# Then remove the single characters from the authors as well
-ALLauthors_split = pd.Series([[token for token in author if len(token)>1] for author in ALLauthors_split])
-# We can also remove the stopwords from the authors. It will remove common words such us "of"
-# that appear as part of "University of X" cases.
-ALLauthors_split = pd.Series([[token for token in author if token not in stopwords] for author in ALLauthors_split])
-# also remove the of word from the authors (University of N)
-ALLauthors_split = pd.Series([[token for token in author if token != 'of'] for author in ALLauthors_split])
-
-
-################################################
-# ADDED at 24/5 to fix the feature union stuff #
-################################################
-ALLabstracts_split_j = pd.Series([' '.join(x) for x in ALLabstracts_split])
-ALLtitles_split_j = pd.Series([' '.join(x) for x in ALLtitles_split])
-ALLauthors_split_j = pd.Series([' '.join(x) for x in ALLauthors_split])
-#######
-# END #
-#######
-
-##################################
-
-ALLabstracts_split.head(2)
-ALLauthors_split.head(5)
-ALLtitles_split.head(5)
-
-##################################
-
-
-## I'll try merging the abstracts and titles
-ALLabstitles   = pd.Series([a + b for a, b in zip(ALLabstracts_split, ALLtitles_split)])
-ALLabstitles_j = pd.Series([' '.join(x) for x in ALLabstitles])
-
-# Now I'll merge the authors too
-ALLabstitlesauth   = pd.Series([a+b+c for a,b,c in zip (ALLabstracts_split,ALLtitles_split, ALLauthors_split)])
-ALLabstitlesauth_j = pd.Series([' '.join(x) for x in ALLabstitlesauth])
-
-#########################################################
-#########################################################
-## I want to do the same for the test data now.
-#########################################################
-#########################################################
-# Read test data
+# Same for the test data
 test_ids = list()
 with open('test.csv', 'r') as f:
     next(f)
@@ -124,63 +90,16 @@ for i in test_ids:
     test_titles.append(df.loc[df['id'] == int(i)]['title'].iloc[0])
     test_authors.append(df.loc[df['id'] == int(i)]['authors'].iloc[0])
 
-TESTabstracts = pd.Series(v for v in test_abstracts)
-TESTtitles    = pd.Series(v for v in test_titles)
-TESTauthors   = pd.Series(v for v in test_authors)
-
-TESTabstracts = TESTabstracts.str.replace(RE_PUNCTUATION,' ')
-TESTtitles    = TESTtitles.str.replace(RE_PUNCTUATION,' ')
-TESTauthors   = TESTauthors.str.replace(RE_PUNCTUATION,' ')
-
-TESTabstracts_split = TESTabstracts.str.split()
-TESTtitles_split    = TESTtitles.str.split()
-TESTauthors_split   = TESTauthors.str.split()
-
-TESTabstracts_split = pd.Series([[token for token in abstract if token not in stopwords] for abstract in TESTabstracts_split])
-TESTtitles_split    = pd.Series([[token for token in title if token not in stopwords] for title in TESTtitles_split])
-
-TESTabstracts_split = pd.Series([[token for token in abstract if len(token)>1] for abstract in TESTabstracts_split])
-TESTtitles_split    = pd.Series([[token for token in title if len(token)>1] for title in TESTtitles_split])
-
-# Remove the digit words
-TESTabstracts_split = pd.Series([[token for token in abstract if not token.isdigit()] for abstract in TESTabstracts_split])
-TESTtitles_split    = pd.Series([[token for token in title if not token.isdigit()] for title in TESTtitles_split])
+TESTabstracts = transform_data(test_abstracts,stopwords,punctuation)
+TESTtitles    = transform_data(test_titles,stopwords,punctuation)
+TESTauthors   = transform_data(test_authors,stopwords,punctuation)
 
 
-# Replace first all the NaNs with a character as they keep getting in the way
-TESTauthors_split = pd.Series([[] if x is np.nan else x for x in TESTauthors_split])
-# Then remove the single characters from the authors as well
-TESTauthors_split = pd.Series([[token for token in author if len(token)>1] for author in TESTauthors_split])
-TESTauthors_split = pd.Series([[token for token in author if token not in stopwords] for author in TESTauthors_split])
+# Save to files - The main program will use them
+write_to_file(ALLabstracts,"datasets/train/abstracts.csv")
+write_to_file(ALLtitles,"datasets/train/titles.csv")
+write_to_file(ALLauthors,"datasets/train/authors.csv")
 
-# also remove the of word from the authors (University of N)
-TESTauthors_split = pd.Series([[token for token in author if token != 'of'] for author in TESTauthors_split])
-
-TESTabstitles       = pd.Series([a+b for a,b in zip(TESTabstracts_split, TESTtitles_split)])
-TESTabstitlesauth   = pd.Series([a+b+c for a,b,c in zip(TESTabstracts_split,TESTtitles_split,TESTauthors_split)])
-TESTabstitles_j     = pd.Series([' '.join(x) for x in TESTabstitles])
-TESTabstitlesauth_j = pd.Series([' '.join(x) for x in TESTabstitlesauth])
-
-################################################
-# ADDED at 24/5 to fix the feature union stuff #
-################################################
-TESTabstracts_split_j = pd.Series([' '.join(x) for x in TESTabstracts_split])
-TESTtitles_split_j = pd.Series([' '.join(x) for x in TESTtitles_split])
-TESTauthors_split_j = pd.Series([' '.join(x) for x in TESTauthors_split])
-#######
-# END #
-#######
-
-
-#####################
-# Save the datasets #
-#####################
-ALLabstracts_split_j.to_csv("datasets/train/abstracts.csv",index=False)
-ALLtitles_split_j.to_csv("datasets/train/titles.csv",index=False)
-ALLauthors_split_j.to_csv("datasets/train/authors.csv",index=False)
-ALLabstitlesauth_j.to_csv("datasets/train/abstitauth.csv",index=False)
-
-TESTabstracts_split_j.to_csv("datasets/test/abstracts.csv",index=False)
-TESTtitles_split_j.to_csv("datasets/test/titles.csv",index=False)
-TESTauthors_split_j.to_csv("datasets/test/authors.csv",index=False)
-TESTabstitlesauth_j.to_csv("datasets/test/abstitauth.csv",index=False)
+write_to_file(TESTabstracts,"datasets/test/abstracts.csv")
+write_to_file(TESTtitles,"datasets/test/titles.csv")
+write_to_file(TESTauthors,"datasets/test/authors.csv")
