@@ -3,3 +3,6 @@ sample_submission.csv
 datasets/
 __pycache__
 embeddings
+ensemble*.csv
+result_notes.txt
+subm*.csv
