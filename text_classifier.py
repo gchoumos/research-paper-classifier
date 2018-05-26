@@ -202,13 +202,7 @@ parameters = {
 log_loss_scorer = make_scorer(log_loss, greater_is_better=False, needs_proba=True)
 grid_search = GridSearchCV(pipeline, parameters, n_jobs=1, verbose=10,scoring=log_loss_scorer)
 
-# logr = LogisticRegression(penalty='l2',tol=1e-05)
 grid_search.fit(all_train,y_train)
-
-# Get the input and output in the appropriate format 
-# x_train = [x[0] for x in train.values]
-# x_test  = [x[0] for x in test.values]
-
 
 # WORD EMBEDDINGS
 # vocab = [s.split() for s in x_train]
@@ -230,13 +224,6 @@ grid_search.fit(all_train,y_train)
 #x_train = np.dstack([tr_abs,tr_tit,tr_aut])
 x_test = np.dstack([test_abs,test_titles,test_authors])
 x_test = np.array([t[0] for t in x_test])
-
-# x_train = np.dstack([train_abs,train_titles])
-# x_test = np.dstack([test_abs,test_titles])
-#pdb.set_trace()
-# logr.fit(tr_abs,y_train)
-#grid_search.fit(x_train,y_train)
-#grid_search.fit(x_train_emb, y_train)
 
 print("Best score: %0.3f" % grid_search.best_score_)
 print("Best parameters set:")
