@@ -84,20 +84,20 @@ labels = np.unique(y_train)
 # PIPELINE
 ########
 ##############################################################################
-pipeline = Pipeline([
-    # ('vect', CountVectorizer(decode_error='ignore',stop_words='english',max_df=0.6,ngram_range=(1,2),min_df=0.0)),
-    ('vect', CountVectorizer(decode_error='ignore',stop_words='english')),
-    ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
-    #('sgd', SGDClassifier(max_iter=5,tol=None)),
-    #('mnb', MultinomialNB(alpha=0.1)),
-    #('logr', LogisticRegression()),
-    ('logr', LogisticRegression(penalty='l2',tol=1e-05)),
-    #('rfc', RandomForestClassifier()),
-    #('knn', KNeighborsClassifier()),
-    # ('NuSVC', NuSVC(probability=True)), # This one SUCKS
-    # ('dtc', DecisionTreeClassifier()),
-    # ('clf', MLPClassifier(hidden_layer_sizes=(5,3),verbose=True)),
-])
+# pipeline = Pipeline([
+#     # ('vect', CountVectorizer(decode_error='ignore',stop_words='english',max_df=0.6,ngram_range=(1,2),min_df=0.0)),
+#     ('vect', CountVectorizer(decode_error='ignore',stop_words='english')),
+#     ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
+#     #('sgd', SGDClassifier(max_iter=5,tol=None)),
+#     #('mnb', MultinomialNB(alpha=0.1)),
+#     #('logr', LogisticRegression()),
+#     ('logr', LogisticRegression(penalty='l2',tol=1e-05)),
+#     #('rfc', RandomForestClassifier()),
+#     #('knn', KNeighborsClassifier()),
+#     # ('NuSVC', NuSVC(probability=True)), # This one SUCKS
+#     # ('dtc', DecisionTreeClassifier()),
+#     # ('clf', MLPClassifier(hidden_layer_sizes=(5,3),verbose=True)),
+# ])
 
 # clf = MLPClassifier(  hidden_layer_sizes=(100, ),
 #                             activation='relu',
@@ -207,7 +207,7 @@ parameters = {
 #     #'sgd__loss': ('modified_huber','log'),
 #     #'mnb__alpha': (0.0001,0.001,0.01,0.1,1),
 #     #'logr__penalty': ('l1','l2'),
-#     #'logr__tol': (0.0001,0.00001),
+     'logr__tol': (0.0001,0.00001),
 #     #'logr__C': (1.0,0.8,0.5,0.1), # defaults to 1.0 which performs way better
 #     #'logr__class_weight': (None, 'balanced'), # defaults to None which performs way better than balanced
 #     #'clf__activation': ('relu','logistic'),
@@ -227,7 +227,7 @@ parameters = {
 }
 
 log_loss_scorer = make_scorer(log_loss, greater_is_better=False, needs_proba=True)
-grid_search = GridSearchCV(pipeline, parameters, n_jobs=-1, verbose=10,scoring=log_loss_scorer)
+grid_search = GridSearchCV(pipeline, parameters, n_jobs=1, verbose=10,scoring=log_loss_scorer)
 
 # logr = LogisticRegression(penalty='l2',tol=1e-05)
 grid_search.fit(all_train,y_train)

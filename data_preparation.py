@@ -1,7 +1,7 @@
 """
     TODO:
         - Try removing the words that consist of digits only.
-        - I believe we should also remove the 'University' word as it appears
+        - We might want to remove the 'University' word as it appears
           in a lot of documents.
 """
 import pandas as pd
@@ -23,7 +23,8 @@ punctuation = '|'.join([re.escape(x) for x in string.punctuation.replace('-','')
 # rm_sw:    Remove stopwords
 # rm_smw:   Remove small words
 # rm_dg:    Remove words that consist of digits only
-def transform_data(dataset, stopwords, punct, rm_sw=True, rm_smw=True, rm_dg=True):
+# mdash:    Merge dash including words if the no-dash version exists in the data
+def transform_data(dataset, stopwords, punct, rm_sw=True, rm_smw=True, rm_dg=True, mdash=False):
     # Convert to Pandas series
     dataset = pd.Series(d for d in dataset)
     # Replace the punctuation with space apart from the dashes 
@@ -41,6 +42,32 @@ def transform_data(dataset, stopwords, punct, rm_sw=True, rm_smw=True, rm_dg=Tru
     # Remove digit-only words:
     if rm_dg == True:
         dataset = pd.Series([[word for word in d if not word.isdigit()] for d in dataset])
+    # Merge dash-including words together if the combined version exists
+    # This one takes some time so by default it is not performed
+    if mdash == True:
+        # Get the list of dash-including-words
+        dash_words = set()
+        non_dashed = set()
+        for line in dataset:
+            for word in line:
+                if "-" in word and word not in dash_words:
+                    dash_words.add(word)
+                    non_dashed.add(word.replace('-',''))
+
+        # Check which of them exist without a dash
+        #found_words = set()
+        #for line in dataset:
+        #    for word in line:
+        #        if word in dash_words and word.replace('-','') in non_dashed:
+        #            found_words.add(word)
+
+        # Replace those that exist
+        for j,line in enumerate(dataset):
+            print("line {0}".format(j))
+            for k,word in enumerate(line):
+                if word in dash_words and word.replace('-','') in non_dashed:
+                    dataset[j][k] = word.replace('-','')
+
     # This was needed to make the dataset compatible with the FeatureUnion format
     dataset = [' '.join(x) for x in dataset]
 
@@ -69,9 +96,9 @@ for i in train_ids:
     train_titles.append(df.loc[df['id'] == int(i)]['title'].iloc[0])
     train_authors.append(df.loc[df['id'] == int(i)]['authors'].iloc[0])
 
-ALLabstracts = transform_data(train_abstracts,stopwords,punctuation)
-ALLtitles    = transform_data(train_titles,stopwords,punctuation)
-ALLauthors   = transform_data(train_authors,stopwords,punctuation)
+ALLabstracts = transform_data(train_abstracts,stopwords,punctuation,rm_sw=True,rm_smw=True,rm_dg=True,mdash=True)
+ALLtitles    = transform_data(train_titles,stopwords,punctuation,rm_sw=True,rm_smw=True,rm_dg=True,mdash=True)
+ALLauthors   = transform_data(train_authors,stopwords,punctuation,rm_sw=True,rm_smw=True,rm_dg=True,mdash=True)
 
 # Same for the test data
 test_ids = list()
@@ -90,9 +117,9 @@ for i in test_ids:
     test_titles.append(df.loc[df['id'] == int(i)]['title'].iloc[0])
     test_authors.append(df.loc[df['id'] == int(i)]['authors'].iloc[0])
 
-TESTabstracts = transform_data(test_abstracts,stopwords,punctuation)
-TESTtitles    = transform_data(test_titles,stopwords,punctuation)
-TESTauthors   = transform_data(test_authors,stopwords,punctuation)
+TESTabstracts = transform_data(test_abstracts,stopwords,punctuation,rm_sw=True,rm_smw=True,rm_dg=True,mdash=True)
+TESTtitles    = transform_data(test_titles,stopwords,punctuation,rm_sw=True,rm_smw=True,rm_dg=True,mdash=True)
+TESTauthors   = transform_data(test_authors,stopwords,punctuation,rm_sw=True,rm_smw=True,rm_dg=True,mdash=True)
 
 
 # Save to files - The main program will use them
