@@ -47,22 +47,12 @@ def get_csv(filename):
         result = list(reader)
     return result
 
-# train = pd.read_csv("datasets/train/abstitauth.csv",header=None)
-# test = pd.read_csv("datasets/test/abstitauth.csv",header=None)
-
 train_abs = pd.read_csv("datasets/train/abstracts.csv",header=None)
 train_titles = pd.read_csv("datasets/train/titles.csv",header=None)
 train_authors = pd.read_csv("datasets/train/authors.csv", header=None)
-#train_abs = np.array(get_csv("datasets/train/abstracts.csv"))
-#train_titles = np.array(get_csv("datasets/train/titles.csv"))
-#train_authors = np.array(get_csv("datasets/train/authors.csv"))
-
-#pdb.set_trace()
 
 all_train = np.dstack([train_abs,train_titles,train_authors])
 all_train = np.array([t[0] for t in all_train])
-
-#pdb.set_trace()
 
 test_abs = pd.read_csv("datasets/test/abstracts.csv",header=None)
 test_titles = pd.read_csv("datasets/test/titles.csv",header=None)
@@ -111,7 +101,6 @@ labels = np.unique(y_train)
 #################
 # FEATURE UNION #
 #################
-
 # This is painful because transform (feature selection) using estimators has been
 # deprecated in scikit learn. So we are going to go with SelectFromModel
 logr_abs = LogisticRegression(penalty='l2',tol=1e-05)
@@ -180,22 +169,6 @@ pipeline = Pipeline([
     # Use an SVC classifier on the combined features
     #('svc', SVC(verbose=False,kernel='linear',probability=True)),
 ])
-
-# vect_abs = CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.6, min_df=0.001)
-# vect_tit = CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.18, min_df=0)
-# vect_aut = CountVectorizer(decode_error='ignore', max_df=0.03, min_df=0)
-
-# tr_abs = vect_abs.fit_transform([t[0] for t in train_abs.values])
-# tr_tit = vect_tit.fit_transform([t[0] for t in train_titles.values])
-# tr_aut = vect_aut.fit_transform([t[0] for t in train_authors.values])
-
-# tfidf_abs = TfidfTransformer(norm='l2',sublinear_tf=True)
-# tfidf_tit = TfidfTransformer(norm='l2',sublinear_tf=True)
-# tfidf_aut = TfidfTransformer(norm='l2',sublinear_tf=True)
-
-# tr_abs = tfidf_abs.fit_transform(tr_abs)
-# tr_tit = tfidf_tit.fit_transform(tr_tit)
-# tr_aut = tfidf_aut.fit_transform(tr_aut)
 
 # uncommenting more parameters will give better exploring power but will
 # increase processing time in a combinatorial way
@@ -271,7 +244,6 @@ best_parameters = grid_search.best_estimator_.get_params()
 for param_name in sorted(parameters.keys()):
     print("\t%s: %r" % (param_name, best_parameters[param_name]))
 
-
 ####################
 # Get test IDs too #
 ####################
@@ -281,9 +253,7 @@ with open('test.csv', 'r') as f:
     for line in f:
         test_ids.append(line[:-2])
 
-
 y_pred = grid_search.predict_proba(x_test)
-#y_pred = pipeline.predict_proba(x_test)
 
 # Write predictions to a file
 with open('sample_submission.csv', 'w') as csvfile:
