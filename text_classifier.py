@@ -50,13 +50,17 @@ def get_csv(filename):
 train_abs = pd.read_csv("datasets/train/abstracts.csv",header=None)
 train_titles = pd.read_csv("datasets/train/titles.csv",header=None)
 train_authors = pd.read_csv("datasets/train/authors.csv", header=None)
+train_citations_in = pd.read_csv("datasets/train/incoming_citations.csv", header=None)
+train_citations_out = pd.read_csv("datasets/train/outgoing_citations.csv", header=None)
 
-all_train = np.dstack([train_abs,train_titles,train_authors])
+all_train = np.dstack([train_abs,train_titles,train_authors,train_citations_in,train_citations_out])
 all_train = np.array([t[0] for t in all_train])
 
 test_abs = pd.read_csv("datasets/test/abstracts.csv",header=None)
 test_titles = pd.read_csv("datasets/test/titles.csv",header=None)
 test_authors = pd.read_csv("datasets/test/authors.csv",header=None)
+test_citations_in = pd.read_csv("datasets/test/incoming_citations.csv", header=None)
+test_citations_out = pd.read_csv("datasets/test/outgoing_citations.csv", header=None)
 
 # Get the labels from the train dataset
 y_train = list()
@@ -106,6 +110,8 @@ labels = np.unique(y_train)
 logr_abs = LogisticRegression(penalty='l2',tol=1e-05)
 logr_tit = LogisticRegression(penalty='l2',tol=1e-05)
 logr_aut = LogisticRegression(penalty='l2',tol=1e-05)
+logr_cit_in = LogisticRegression(penalty='l2',tol=1e-05)
+logr_cit_out = LogisticRegression(penalty='l2',tol=1e-05)
 
 pipeline = Pipeline([
     ('abstracttitleauthor', AbstractTitleAuthorExtractor()),
@@ -138,6 +144,25 @@ pipeline = Pipeline([
                 ('sfm_aut', SelectFromModel(logr_aut)),
             ])),
 
+            # min_df: 0.005, max_df: 0.6 - score: 2.089
+            # min_df: 0.010, max_df: 0.6 - score: 2.083
+            # min_df: 0.015, max_df: 0.6 - score: 2.082
+            # No params in countvectorizer - Tfidf enabled with l2 and sublinear - score: 2.052
+            # Pipeline for pulling features from authors
+            ('incoming_citations', Pipeline([
+                ('selector', ItemSelector(key='cit_in')),
+                ('vect', CountVectorizer(decode_error='ignore')),
+                ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
+                ('sfm_aut', SelectFromModel(logr_cit_in)),
+            ])),
+
+            ('outgoing_citations', Pipeline([
+                ('selector', ItemSelector(key='cit_out')),
+                ('vect', CountVectorizer(decode_error='ignore')),
+                ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
+                ('sfm_aut', SelectFromModel(logr_cit_out)),
+            ])),
+
             # Pipeline for abstract stats
             ('abs_stats', Pipeline([
                 ('selector', ItemSelector(key='abstract')),
@@ -156,15 +181,48 @@ pipeline = Pipeline([
         ],
 
         # weight components in FeatureUnion
-        #transformer_weights={
-        #    'abstract': 1.0,
-        #    'title': 2.0,
-        #    'author': 0.5,
-        #},
+		# inc 1.15, out 1.15 --> score: 2.031
+        # inc 1.20, out 1.20 --> score: 2.030
+		# inc 1.30, out 1.30 --> score: 2.029
+		# abs 1.2, inc 1.3, out 1.3 --> score 2.020
+		# abs 1.4, inc 1.3, out 1.3 --> score 2.016
+        # abs 1.5, inc 1.3, out 1.3 --> score 2.017
+        # abs 1.45, inc 1.3, out 1.3 --> score 2.025
+        # abs 1.4, inc 1.3, out 1.3, title 0.9 --> score 2.012
+        # abs 1.4, inc 1.3, out 1.3, title 0.85 --> score 2.010
+        # abs 1.4, inc 1.3, out 1.3, title 0.8 --> score 2.009
+        # abs 1.4, inc 1.3, out 1.3, title 0.75 --> score 2.007
+        # abs 1.4, inc 1.3, out 1.3, title 0.7 --> score 2.006
+        # abs 1.4, inc 1.3, out 1.3, title 0.65 --> score 2.005
+        # abs 1.4, inc 1.3, out 1.3, title 0.60 --> score 2.004
+        # abs 1.4, inc 1.3, out 1.3, title 0.5 --> score 2.003
+        # abs 1.4, inc 1.3, out 1.3, title 0.4 --> score 2.004
+        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 0.9 --> score 2.008
+        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.1 --> score 2.000
+        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2 --> score 1.998
+        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.3 --> score 1.998
+        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2, abs_stats 0.9 --> score 1.999
+        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2, abs_stats 0.6 --> score 1.999
+        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2, abs_stats 0.4 --> score 1.999
+        transformer_weights={
+            'abstract': 1.40,
+            'title': 0.50,
+            'author': 1.2,
+            #'abs_stats': 0.4,
+            'incoming_citations': 1.3,
+            'outgoing_citations': 1.3,
+        },
     )),
 
     # Use Logistic Regression again on the combined features
     #('sgd', SGDClassifier(loss='modified_huber')),
+	# ####################
+    # Default solver is liblinear, however I am trying more (with the best parameters from above).
+    # newton-cg --> score 1.997
+    # sag --> score 2.745 lol
+    # saga --> score 2.73 lol
+    # lbfgs --> score not good
+    # newton-cg with multi_class: multinomial --> score --> took much time. Try again
     ('logr', LogisticRegression(penalty='l2',tol=1e-5)),
     # Use an SVC classifier on the combined features
     #('svc', SVC(verbose=False,kernel='linear',probability=True)),
@@ -222,7 +280,7 @@ grid_search.fit(all_train,y_train)
 # y_train_emb = [doc_embeddings.infer_vector(y) for y in vocab_y]
 
 #x_train = np.dstack([tr_abs,tr_tit,tr_aut])
-x_test = np.dstack([test_abs,test_titles,test_authors])
+x_test = np.dstack([test_abs,test_titles,test_authors,test_citations_in,test_citations_out])
 x_test = np.array([t[0] for t in x_test])
 
 print("Best score: %0.3f" % grid_search.best_score_)
