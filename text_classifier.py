@@ -51,14 +51,16 @@ train_abs = pd.read_csv("datasets/train/abstracts.csv",header=None)
 train_titles = pd.read_csv("datasets/train/titles.csv",header=None)
 train_authors = pd.read_csv("datasets/train/authors.csv", header=None)
 train_citations_in = pd.read_csv("datasets/train/incoming_citations.csv", header=None)
+train_citations_out = pd.read_csv("datasets/train/outgoing_citations.csv", header=None)
 
-all_train = np.dstack([train_abs,train_titles,train_authors,train_citations_in])
+all_train = np.dstack([train_abs,train_titles,train_authors,train_citations_in,train_citations_out])
 all_train = np.array([t[0] for t in all_train])
 
 test_abs = pd.read_csv("datasets/test/abstracts.csv",header=None)
 test_titles = pd.read_csv("datasets/test/titles.csv",header=None)
 test_authors = pd.read_csv("datasets/test/authors.csv",header=None)
 test_citations_in = pd.read_csv("datasets/test/incoming_citations.csv", header=None)
+test_citations_out = pd.read_csv("datasets/test/outgoing_citations.csv", header=None)
 
 # Get the labels from the train dataset
 y_train = list()
@@ -109,6 +111,7 @@ logr_abs = LogisticRegression(penalty='l2',tol=1e-05)
 logr_tit = LogisticRegression(penalty='l2',tol=1e-05)
 logr_aut = LogisticRegression(penalty='l2',tol=1e-05)
 logr_cit_in = LogisticRegression(penalty='l2',tol=1e-05)
+logr_cit_out = LogisticRegression(penalty='l2',tol=1e-05)
 
 pipeline = Pipeline([
     ('abstracttitleauthor', AbstractTitleAuthorExtractor()),
@@ -151,6 +154,13 @@ pipeline = Pipeline([
                 ('vect', CountVectorizer(decode_error='ignore')),
                 ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
                 ('sfm_aut', SelectFromModel(logr_cit_in)),
+            ])),
+
+            ('outgoing_citations', Pipeline([
+                ('selector', ItemSelector(key='cit_out')),
+                ('vect', CountVectorizer(decode_error='ignore')),
+                ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
+                ('sfm_aut', SelectFromModel(logr_cit_out)),
             ])),
 
             # Pipeline for abstract stats
@@ -238,7 +248,7 @@ grid_search.fit(all_train,y_train)
 # y_train_emb = [doc_embeddings.infer_vector(y) for y in vocab_y]
 
 #x_train = np.dstack([tr_abs,tr_tit,tr_aut])
-x_test = np.dstack([test_abs,test_titles,test_authors,test_citations_in])
+x_test = np.dstack([test_abs,test_titles,test_authors,test_citations_in,test_citations_out])
 x_test = np.array([t[0] for t in x_test])
 
 print("Best score: %0.3f" % grid_search.best_score_)
