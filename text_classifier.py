@@ -181,16 +181,48 @@ pipeline = Pipeline([
         ],
 
         # weight components in FeatureUnion
-        #transformer_weights={
-        #    'abstract': 2,
-        #    'title': 1.7,
-        #    'author': 1.6,
-        #    'abs_stats': 0.5,
-        #},
+		# inc 1.15, out 1.15 --> score: 2.031
+        # inc 1.20, out 1.20 --> score: 2.030
+		# inc 1.30, out 1.30 --> score: 2.029
+		# abs 1.2, inc 1.3, out 1.3 --> score 2.020
+		# abs 1.4, inc 1.3, out 1.3 --> score 2.016
+        # abs 1.5, inc 1.3, out 1.3 --> score 2.017
+        # abs 1.45, inc 1.3, out 1.3 --> score 2.025
+        # abs 1.4, inc 1.3, out 1.3, title 0.9 --> score 2.012
+        # abs 1.4, inc 1.3, out 1.3, title 0.85 --> score 2.010
+        # abs 1.4, inc 1.3, out 1.3, title 0.8 --> score 2.009
+        # abs 1.4, inc 1.3, out 1.3, title 0.75 --> score 2.007
+        # abs 1.4, inc 1.3, out 1.3, title 0.7 --> score 2.006
+        # abs 1.4, inc 1.3, out 1.3, title 0.65 --> score 2.005
+        # abs 1.4, inc 1.3, out 1.3, title 0.60 --> score 2.004
+        # abs 1.4, inc 1.3, out 1.3, title 0.5 --> score 2.003
+        # abs 1.4, inc 1.3, out 1.3, title 0.4 --> score 2.004
+        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 0.9 --> score 2.008
+        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.1 --> score 2.000
+        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2 --> score 1.998
+        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.3 --> score 1.998
+        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2, abs_stats 0.9 --> score 1.999
+        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2, abs_stats 0.6 --> score 1.999
+        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2, abs_stats 0.4 --> score 1.999
+        transformer_weights={
+            'abstract': 1.40,
+            'title': 0.50,
+            'author': 1.2,
+            #'abs_stats': 0.4,
+            'incoming_citations': 1.3,
+            'outgoing_citations': 1.3,
+        },
     )),
 
     # Use Logistic Regression again on the combined features
     #('sgd', SGDClassifier(loss='modified_huber')),
+	# ####################
+    # Default solver is liblinear, however I am trying more (with the best parameters from above).
+    # newton-cg --> score 1.997
+    # sag --> score 2.745 lol
+    # saga --> score 2.73 lol
+    # lbfgs --> score not good
+    # newton-cg with multi_class: multinomial --> score --> took much time. Try again
     ('logr', LogisticRegression(penalty='l2',tol=1e-5)),
     # Use an SVC classifier on the combined features
     #('svc', SVC(verbose=False,kernel='linear',probability=True)),
