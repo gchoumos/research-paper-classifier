@@ -83,13 +83,14 @@ class AbstractTitleAuthorExtractor(BaseEstimator, TransformerMixin):
 
     def transform(self, lines):
         features = np.recarray(shape=(len(lines),),
-                               dtype=[('abstract', object), ('title', object), ('author', object)])
+                               dtype=[('abstract', object), ('title', object), ('author', object), ('cit_in', object)])
         for i, line in enumerate(lines):
-            abstract, title, author = line[0], line[1], line[2]
+            abstract, title, author, cit_in = line[0], line[1], line[2], line[3]
 
             features['abstract'][i] = abstract if abstract==abstract else ''
             features['title'][i] = title if title==title else ''
             features['author'][i] = author if author==author else ''
+            features['cit_in'][i] = cit_in if cit_in==cit_in else ''
 
         print("MYSELF: Features shape is {0}".format(features.shape))
         print("MYSELF: {0}".format(features[0]))
