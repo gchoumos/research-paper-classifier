@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import string
 import re
+
 from gensim.parsing.preprocessing import STOPWORDS
 
 def write_to_file(data,filename):
@@ -24,7 +25,14 @@ punctuation = '|'.join([re.escape(x) for x in string.punctuation.replace('-','')
 # rm_smw:   Remove small words
 # rm_dg:    Remove words that consist of digits only
 # mdash:    Merge dash including words if the no-dash version exists in the data
-def transform_data(dataset, stopwords, punct, rm_sw=True, rm_smw=True, rm_dg=True, mdash=False):
+def transform_data(dataset,
+                   stopwords,
+                   punct,
+                   rm_sw=True,
+                   rm_smw=True,
+                   rm_dg=True,
+                   mdash=False,
+                   mplural=False):
     # Convert to Pandas series
     dataset = pd.Series(d for d in dataset)
     # Replace the punctuation with space apart from the dashes 
@@ -62,11 +70,29 @@ def transform_data(dataset, stopwords, punct, rm_sw=True, rm_smw=True, rm_dg=Tru
         #            found_words.add(word)
 
         # Replace those that exist
-        for j,line in enumerate(dataset):
+        for j, line in enumerate(dataset):
             print("line {0}".format(j))
-            for k,word in enumerate(line):
+            for k, word in enumerate(line):
                 if word in dash_words and word.replace('-','') in non_dashed:
                     dataset[j][k] = word.replace('-','')
+
+    if mplural == True:
+        # This will only recognize cases of a final s.
+        candidates = set()
+        singulars = set()
+        for line in dataset:
+            for word in line:
+                if len(word) > 4 and word.endswith('s'):
+                    candidates.add(word)
+                elif len(word) > 3:# that's intented - just think
+                    singulars.add(word)
+
+        # Replace the simple plurals with the singulars
+        for k, line in enumerate(dataset):
+            print("Plurals - Line {0}".format(k))
+            for l, word in enumerate(line):
+                if word in candidates and word[:-1] in singulars:
+                    dataset[k][l] = word[:-1]
 
     # This was needed to make the dataset compatible with the FeatureUnion format
     dataset = [' '.join(x) for x in dataset]
@@ -96,9 +122,9 @@ for i in train_ids:
     train_titles.append(df.loc[df['id'] == int(i)]['title'].iloc[0])
     train_authors.append(df.loc[df['id'] == int(i)]['authors'].iloc[0])
 
-ALLabstracts = transform_data(train_abstracts,stopwords,punctuation,rm_sw=True,rm_smw=True,rm_dg=True,mdash=True)
-ALLtitles    = transform_data(train_titles,stopwords,punctuation,rm_sw=True,rm_smw=True,rm_dg=True,mdash=True)
-ALLauthors   = transform_data(train_authors,stopwords,punctuation,rm_sw=True,rm_smw=True,rm_dg=True,mdash=True)
+ALLabstracts = transform_data(train_abstracts,stopwords,punctuation,rm_sw=True,rm_smw=True,rm_dg=True,mdash=True,mplural=True)
+ALLtitles    = transform_data(train_titles,stopwords,punctuation,rm_sw=True,rm_smw=True,rm_dg=True,mdash=True,mplural=True)
+ALLauthors   = transform_data(train_authors,stopwords,punctuation,rm_sw=True,rm_smw=True,rm_dg=True,mdash=True,mplural=True)
 
 # Same for the test data
 test_ids = list()
@@ -117,9 +143,9 @@ for i in test_ids:
     test_titles.append(df.loc[df['id'] == int(i)]['title'].iloc[0])
     test_authors.append(df.loc[df['id'] == int(i)]['authors'].iloc[0])
 
-TESTabstracts = transform_data(test_abstracts,stopwords,punctuation,rm_sw=True,rm_smw=True,rm_dg=True,mdash=True)
-TESTtitles    = transform_data(test_titles,stopwords,punctuation,rm_sw=True,rm_smw=True,rm_dg=True,mdash=True)
-TESTauthors   = transform_data(test_authors,stopwords,punctuation,rm_sw=True,rm_smw=True,rm_dg=True,mdash=True)
+TESTabstracts = transform_data(test_abstracts,stopwords,punctuation,rm_sw=True,rm_smw=True,rm_dg=True,mdash=True,mplural=True)
+TESTtitles    = transform_data(test_titles,stopwords,punctuation,rm_sw=True,rm_smw=True,rm_dg=True,mdash=True,mplural=True)
+TESTauthors   = transform_data(test_authors,stopwords,punctuation,rm_sw=True,rm_smw=True,rm_dg=True,mdash=True,mplural=True)
 
 
 # Save to files - The main program will use them
