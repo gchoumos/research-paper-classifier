@@ -8,6 +8,9 @@ import pandas as pd
 import numpy as np
 import string
 import re
+import inflect
+p = inflect.engine()
+
 from gensim.parsing.preprocessing import STOPWORDS
 
 def write_to_file(data,filename):
@@ -24,7 +27,15 @@ punctuation = '|'.join([re.escape(x) for x in string.punctuation.replace('-','')
 # rm_smw:   Remove small words
 # rm_dg:    Remove words that consist of digits only
 # mdash:    Merge dash including words if the no-dash version exists in the data
-def transform_data(dataset, stopwords, punct, rm_sw=True, rm_smw=True, rm_dg=True, mdash=False):
+def transform_data(dataset,
+                   stopwords,
+                   punct,
+                   rm_sw=True,
+                   rm_smw=True,
+                   rm_dg=True,
+                   mdash=False,
+                   mplural=False,
+				   singulars=True):
     # Convert to Pandas series
     dataset = pd.Series(d for d in dataset)
     # Replace the punctuation with space apart from the dashes 
@@ -62,11 +73,38 @@ def transform_data(dataset, stopwords, punct, rm_sw=True, rm_smw=True, rm_dg=Tru
         #            found_words.add(word)
 
         # Replace those that exist
-        for j,line in enumerate(dataset):
+        for j, line in enumerate(dataset):
             print("line {0}".format(j))
-            for k,word in enumerate(line):
+            for k, word in enumerate(line):
                 if word in dash_words and word.replace('-','') in non_dashed:
                     dataset[j][k] = word.replace('-','')
+
+    if mplural == True:
+        # This will only recognize cases of a final s.
+        candidates = set()
+        singulars = set()
+        for line in dataset:
+            for word in line:
+                if len(word) > 4 and word.endswith('s'):
+                    candidates.add(word)
+                elif len(word) > 3:# that's intented - just think
+                    singulars.add(word)
+
+        # Replace the simple plurals with the singulars
+        for k, line in enumerate(dataset):
+            print("Plurals - Line {0}".format(k))
+            for l, word in enumerate(line):
+                if word in candidates and word[:-1] in singulars:
+                    dataset[k][l] = word[:-1]
+
+    if singulars == True:
+        for k,line in enumerate(dataset):
+            print("Plurals inflect - Line {0}".format(k))
+            for l, word in enumerate(line):
+                if p.singular_noun(word) == False:
+                    continue
+                else:
+                    dataset[k][l] = p.singular_noun(word)
 
     # This was needed to make the dataset compatible with the FeatureUnion format
     dataset = [' '.join(x) for x in dataset]
