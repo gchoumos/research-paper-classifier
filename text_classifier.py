@@ -27,7 +27,7 @@ from sklearn.tree import DecisionTreeClassifier
 import gensim
 from gensim.models import Word2Vec, Doc2Vec
 
-from feature_union_sklearn import ItemSelector, TextStats, AbstractTitleAuthorExtractor
+from feature_union_sklearn import ItemSelector, TextStats, AbstractTitleAuthorExtractor, GraphProperties
 
 import pdb
 
@@ -52,8 +52,20 @@ train_titles = pd.read_csv("datasets/train/titles.csv",header=None)
 train_authors = pd.read_csv("datasets/train/authors.csv", header=None)
 train_citations_in = pd.read_csv("datasets/train/incoming_citations.csv", header=None)
 train_citations_out = pd.read_csv("datasets/train/outgoing_citations.csv", header=None)
+train_outdeg = pd.read_csv("datasets/train/graph_properties.csv", header=None, usecols=[0])
+train_indeg = pd.read_csv("datasets/train/graph_properties.csv", header=None, usecols=[1])
+train_avg_neigh_deg = pd.read_csv("datasets/train/graph_properties.csv", header=None, usecols=[2])
 
-all_train = np.dstack([train_abs,train_titles,train_authors,train_citations_in,train_citations_out])
+all_train = np.dstack([
+                        train_abs,
+                        train_titles,
+                        train_authors,
+                        train_citations_in,
+                        train_citations_out,
+                        train_outdeg,
+                        train_indeg,
+                        train_avg_neigh_deg
+                      ])
 all_train = np.array([t[0] for t in all_train])
 
 test_abs = pd.read_csv("datasets/test/abstracts.csv",header=None)
@@ -61,6 +73,9 @@ test_titles = pd.read_csv("datasets/test/titles.csv",header=None)
 test_authors = pd.read_csv("datasets/test/authors.csv",header=None)
 test_citations_in = pd.read_csv("datasets/test/incoming_citations.csv", header=None)
 test_citations_out = pd.read_csv("datasets/test/outgoing_citations.csv", header=None)
+test_outdeg = pd.read_csv("datasets/test/graph_properties.csv", header=None, usecols=[0])
+test_indeg = pd.read_csv("datasets/test/graph_properties.csv", header=None, usecols=[1])
+test_avg_neigh_deg = pd.read_csv("datasets/test/graph_properties.csv", header=None, usecols=[2])
 
 # Get the labels from the train dataset
 y_train = list()
@@ -112,6 +127,9 @@ logr_tit = LogisticRegression(penalty='l2',tol=1e-05)
 logr_aut = LogisticRegression(penalty='l2',tol=1e-05)
 logr_cit_in = LogisticRegression(penalty='l2',tol=1e-05)
 logr_cit_out = LogisticRegression(penalty='l2',tol=1e-05)
+logr_outdeg = LogisticRegression(penalty='l2',tol=1e-05)
+logr_indeg = LogisticRegression(penalty='l2',tol=1e-05)
+logr_avg_neigh_deg = LogisticRegression(penalty='l2',tol=1e-05)
 
 pipeline = Pipeline([
     ('abstracttitleauthor', AbstractTitleAuthorExtractor()),
@@ -163,6 +181,13 @@ pipeline = Pipeline([
                 ('sfm_aut', SelectFromModel(logr_cit_out)),
             ])),
 
+            # consider having all the graph properties to a single logistic regression
+            ('gprops', Pipeline([
+                ('selector', ItemSelector(key='graph_props')),
+                ('props', GraphProperties()),
+                ('vect_graph_props', DictVectorizer()),
+            ])),
+
             # Pipeline for abstract stats
             ('abs_stats', Pipeline([
                 ('selector', ItemSelector(key='abstract')),
@@ -204,6 +229,10 @@ pipeline = Pipeline([
         # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2, abs_stats 0.9 --> score 1.999
         # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2, abs_stats 0.6 --> score 1.999
         # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2, abs_stats 0.4 --> score 1.999
+        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2, abs_stats 0.4, gprops: default --> score 1.958
+        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2, abs_stats 0.4, gprops: 1.1 --> score 1.959
+        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2, abs_stats 0.4, gprops: 0.9 --> score 1.958
+        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2, abs_stats 0.4, gprops: 
         transformer_weights={
             'abstract': 1.40,
             'title': 0.50,
@@ -211,6 +240,7 @@ pipeline = Pipeline([
             #'abs_stats': 0.4,
             'incoming_citations': 1.3,
             'outgoing_citations': 1.3,
+			'gprops': 0.9,
         },
     )),
 
@@ -280,7 +310,16 @@ grid_search.fit(all_train,y_train)
 # y_train_emb = [doc_embeddings.infer_vector(y) for y in vocab_y]
 
 #x_train = np.dstack([tr_abs,tr_tit,tr_aut])
-x_test = np.dstack([test_abs,test_titles,test_authors,test_citations_in,test_citations_out])
+x_test = np.dstack([
+                        test_abs,
+                        test_titles,
+                        test_authors,
+                        test_citations_in,
+                        test_citations_out,
+                        test_outdeg,
+                        test_indeg,
+                        test_avg_neigh_deg
+                  ])
 x_test = np.array([t[0] for t in x_test])
 
 print("Best score: %0.3f" % grid_search.best_score_)
