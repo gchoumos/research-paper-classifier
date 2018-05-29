@@ -3,11 +3,10 @@
         - Try removing the words that consist of digits only.
         - We might want to remove the 'University' word as it appears
           in a lot of documents.
-		- If you took care of the outgoing citations, well done. BUT, you must
-		  also incorporate the incoming (most probably in a separate feature)
 """
 import pandas as pd
 import numpy as np
+import networkx as nx
 import string
 import re
 import inflect
@@ -113,14 +112,6 @@ def transform_data(dataset,
 
     return dataset
 
-# Load data about each article in a dataframe
-df = pd.read_csv("node_information.csv")
-print(df.head())
-
-# Load the citations too
-df2 = pd.read_csv("Cit-HepTh.txt",delimiter='\t', header=None, names=['paper_id','cites'])
-print(df2.head())
-
 # Read training data
 train_ids = list()
 y_train = list()
@@ -131,6 +122,33 @@ with open('train.csv', 'r') as f:
         t = line.split(',')
         train_ids.append(t[0])
         y_train.append(t[1][:-1])
+
+labels = np.unique(y_train)
+
+# Load data about each article in a dataframe
+df = pd.read_csv("node_information.csv")
+print(df.head())
+
+# Load the citations too
+df2 = pd.read_csv("Cit-HepTh.txt",delimiter='\t', header=None, names=['paper_id','cites'])
+print(df2.head())
+
+# Load the citations again, but this time as a directed network graph
+G = nx.read_edgelist('Cit-HepTh.txt', delimiter='\t', create_using=nx.DiGraph())
+print("Nodes: ", G.number_of_nodes())
+print("Edges: ", G.number_of_edges())
+
+# The graph baseline is actually used here
+# (1) out-degree of node
+# (2) in-degree of node
+# (3) average degree of neighborhood of node
+avg_neig_deg = nx.average_neighbor_degree(G, nodes=train_ids)
+train_graph_properties = list()
+for i in range(len(train_ids)):
+    train_outdeg = G.out_degree(train_ids[i])
+    train_indeg = G.in_degree(train_ids[i])
+    train_avg_neighbour_deg = avg_neig_deg[train_ids[i]]
+    train_graph_properties.append([train_outdeg,train_indeg,train_avg_neighbour_deg])
 
 train_abstracts = list()
 train_titles    = list()
@@ -156,8 +174,16 @@ with open('test.csv', 'r') as f:
     for line in f:
         test_ids.append(line[:-2])
 
+# Create the test matrix. Use the same 3 features as above
+avg_neig_deg = nx.average_neighbor_degree(G, nodes=test_ids)
+test_graph_properties = list()
+for i in range(len(test_ids)):
+    test_outdeg = G.out_degree(test_ids[i])
+    test_indeg = G.in_degree(test_ids[i])
+    test_avg_neighbour_deg = avg_neig_deg[test_ids[i]]
+    test_graph_properties.append([test_outdeg,test_indeg,test_avg_neighbour_deg])
+
 # Extract the abstract of each test article from the dataframe
-n_test = len(test_ids)
 test_abstracts = list()
 test_titles = list()
 test_authors = list()
@@ -181,9 +207,17 @@ write_to_file(ALLtitles,"datasets/train/titles.csv")
 write_to_file(ALLauthors,"datasets/train/authors.csv")
 write_to_file(train_citations_in,"datasets/train/incoming_citations.csv")
 write_to_file(train_citations_out,"datasets/train/outgoing_citations.csv")
+# Use the csv writer for the graph properties
+with open("datasets/train/graph_properties.csv", "w") as f:
+    writer = csv.writer(f)
+    writer.writerows(train_graph_properties)
 
 write_to_file(TESTabstracts,"datasets/test/abstracts.csv")
 write_to_file(TESTtitles,"datasets/test/titles.csv")
 write_to_file(TESTauthors,"datasets/test/authors.csv")
 write_to_file(test_citations_in,"datasets/test/incoming_citations.csv")
 write_to_file(test_citations_out,"datasets/test/outgoing_citations.csv")
+# Use the csv writer for the graph properties
+with open("datasets/test/graph_properties.csv", "w") as f:
+    writer = csv.writer(f)
+    writer.writerows(test_graph_properties)
