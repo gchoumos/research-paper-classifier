@@ -131,6 +131,8 @@ logr_outdeg = LogisticRegression(penalty='l2',tol=1e-05)
 logr_indeg = LogisticRegression(penalty='l2',tol=1e-05)
 logr_avg_neigh_deg = LogisticRegression(penalty='l2',tol=1e-05)
 
+
+thres_all = None
 pipeline = Pipeline([
     ('abstracttitleauthor', AbstractTitleAuthorExtractor()),
 
@@ -141,9 +143,9 @@ pipeline = Pipeline([
             # Pipeline for pulling features from abstracts
             ('abstract', Pipeline([
                 ('selector', ItemSelector(key='abstract')),
-                ('vect', CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.6, min_df=0.001)),
+                ('vect', CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.6, min_df=0.001,ngram_range=(1,2))),
                 ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
-                ('sfm_abs', SelectFromModel(logr_abs)),
+                ('sfm_abs', SelectFromModel(logr_abs,threshold=thres_all)),
             ])),
 
             # Pipeline for pulling features from titles
@@ -151,7 +153,7 @@ pipeline = Pipeline([
                 ('selector', ItemSelector(key='title')),
                 ('vect', CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.18, min_df=0)),
                 ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
-                ('sfm_tit', SelectFromModel(logr_tit)),
+                ('sfm_tit', SelectFromModel(logr_tit,threshold=thres_all)),
             ])),
 
             # Pipeline for pulling features from authors
@@ -159,26 +161,22 @@ pipeline = Pipeline([
                 ('selector', ItemSelector(key='author')),
                 ('vect', CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.03, min_df=0)),
                 ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
-                ('sfm_aut', SelectFromModel(logr_aut)),
+                ('sfm_aut', SelectFromModel(logr_aut,threshold=0.55)),
             ])),
 
-            # min_df: 0.005, max_df: 0.6 - score: 2.089
-            # min_df: 0.010, max_df: 0.6 - score: 2.083
-            # min_df: 0.015, max_df: 0.6 - score: 2.082
-            # No params in countvectorizer - Tfidf enabled with l2 and sublinear - score: 2.052
             # Pipeline for pulling features from authors
             ('incoming_citations', Pipeline([
                 ('selector', ItemSelector(key='cit_in')),
                 ('vect', CountVectorizer(decode_error='ignore')),
                 ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
-                ('sfm_aut', SelectFromModel(logr_cit_in)),
+                ('sfm_aut', SelectFromModel(logr_cit_in,threshold=0.15)),
             ])),
 
             ('outgoing_citations', Pipeline([
                 ('selector', ItemSelector(key='cit_out')),
                 ('vect', CountVectorizer(decode_error='ignore')),
                 ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
-                ('sfm_aut', SelectFromModel(logr_cit_out)),
+                ('sfm_aut', SelectFromModel(logr_cit_out,threshold=0.1)),
             ])),
 
             # consider having all the graph properties to a single logistic regression
@@ -196,51 +194,25 @@ pipeline = Pipeline([
             ])),
 
             # Pipeline for title stats
-            #('tit_stats', Pipeline([
-            #    ('selector', ItemSelector(key='title')),
-            #    ('stats', TextStats()),  # returns a list of dicts
-            #    ('vect_titles_stats', DictVectorizer()),
-            #])),
+            ('aut_stats', Pipeline([
+               ('selector', ItemSelector(key='author')),
+               ('stats', TextStats()),  # returns a list of dicts
+               ('vect_titles_stats', DictVectorizer()),
+            ])),
 
     
         ],
 
-        # weight components in FeatureUnion
-		# inc 1.15, out 1.15 --> score: 2.031
-        # inc 1.20, out 1.20 --> score: 2.030
-		# inc 1.30, out 1.30 --> score: 2.029
-		# abs 1.2, inc 1.3, out 1.3 --> score 2.020
-		# abs 1.4, inc 1.3, out 1.3 --> score 2.016
-        # abs 1.5, inc 1.3, out 1.3 --> score 2.017
-        # abs 1.45, inc 1.3, out 1.3 --> score 2.025
-        # abs 1.4, inc 1.3, out 1.3, title 0.9 --> score 2.012
-        # abs 1.4, inc 1.3, out 1.3, title 0.85 --> score 2.010
-        # abs 1.4, inc 1.3, out 1.3, title 0.8 --> score 2.009
-        # abs 1.4, inc 1.3, out 1.3, title 0.75 --> score 2.007
-        # abs 1.4, inc 1.3, out 1.3, title 0.7 --> score 2.006
-        # abs 1.4, inc 1.3, out 1.3, title 0.65 --> score 2.005
-        # abs 1.4, inc 1.3, out 1.3, title 0.60 --> score 2.004
-        # abs 1.4, inc 1.3, out 1.3, title 0.5 --> score 2.003
-        # abs 1.4, inc 1.3, out 1.3, title 0.4 --> score 2.004
-        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 0.9 --> score 2.008
-        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.1 --> score 2.000
-        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2 --> score 1.998
-        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.3 --> score 1.998
-        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2, abs_stats 0.9 --> score 1.999
-        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2, abs_stats 0.6 --> score 1.999
-        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2, abs_stats 0.4 --> score 1.999
-        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2, abs_stats 0.4, gprops: default --> score 1.958
-        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2, abs_stats 0.4, gprops: 1.1 --> score 1.959
-        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2, abs_stats 0.4, gprops: 0.9 --> score 1.958
-        # abs 1.4, inc 1.3, out 1.3, title 0.5, author 1.2, abs_stats 0.4, gprops: 
+        # weight components in FeatureUnion - Check the result notes file for more
         transformer_weights={
             'abstract': 1.40,
             'title': 0.50,
             'author': 1.2,
-            #'abs_stats': 0.4,
+            #'abs_stats': 0.9,
             'incoming_citations': 1.3,
             'outgoing_citations': 1.3,
-			'gprops': 0.9,
+			#'gprops': 0.6,
+            #'aut_stats': 0.7,
         },
     )),
 
@@ -253,7 +225,7 @@ pipeline = Pipeline([
     # saga --> score 2.73 lol
     # lbfgs --> score not good
     # newton-cg with multi_class: multinomial --> score --> took much time. Try again
-    ('logr', LogisticRegression(penalty='l2',tol=1e-5)),
+    ('logr', LogisticRegression(penalty='l2',tol=0.0001)),
     # Use an SVC classifier on the combined features
     #('svc', SVC(verbose=False,kernel='linear',probability=True)),
 ])
@@ -268,7 +240,7 @@ parameters = {
 #     #'sgd__loss': ('modified_huber','log'),
 #     #'mnb__alpha': (0.0001,0.001,0.01,0.1,1),
 #     #'logr__penalty': ('l1','l2'),
-     'logr__tol': (0.0001,0.00001),
+#     'logr__tol': (0.0001,0.00001),
 #     #'logr__C': (1.0,0.8,0.5,0.1), # defaults to 1.0 which performs way better
 #     #'logr__class_weight': (None, 'balanced'), # defaults to None which performs way better than balanced
 #     #'clf__activation': ('relu','logistic'),
@@ -288,7 +260,7 @@ parameters = {
 }
 
 log_loss_scorer = make_scorer(log_loss, greater_is_better=False, needs_proba=True)
-grid_search = GridSearchCV(pipeline, parameters, n_jobs=1, verbose=10,scoring=log_loss_scorer)
+grid_search = GridSearchCV(pipeline, parameters, n_jobs=-1, verbose=10,scoring=log_loss_scorer)
 
 grid_search.fit(all_train,y_train)
 

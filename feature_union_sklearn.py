@@ -68,7 +68,8 @@ class TextStats(BaseEstimator, TransformerMixin):
         return [{'length': len(line),
                  'num_words': line.count(' '),
                  'num_digits': sum(c.isdigit() for c in line),
-                 'words_dash': len([w2 for w2 in line if '-' in w2])}
+                 'words_dash': len([w2 for w2 in line if '-' in w2])
+                 }
                 for line in lines]
 
 # ################ #
