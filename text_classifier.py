@@ -55,6 +55,7 @@ train_citations_out = pd.read_csv("datasets/train/outgoing_citations.csv", heade
 train_outdeg = pd.read_csv("datasets/train/graph_properties.csv", header=None, usecols=[0])
 train_indeg = pd.read_csv("datasets/train/graph_properties.csv", header=None, usecols=[1])
 train_avg_neigh_deg = pd.read_csv("datasets/train/graph_properties.csv", header=None, usecols=[2])
+train_years = pd.read_csv("datasets/train/years.csv", header=None)
 
 all_train = np.dstack([
                         train_abs,
@@ -64,7 +65,8 @@ all_train = np.dstack([
                         train_citations_out,
                         train_outdeg,
                         train_indeg,
-                        train_avg_neigh_deg
+                        train_avg_neigh_deg,
+                        train_years
                       ])
 all_train = np.array([t[0] for t in all_train])
 
@@ -76,6 +78,7 @@ test_citations_out = pd.read_csv("datasets/test/outgoing_citations.csv", header=
 test_outdeg = pd.read_csv("datasets/test/graph_properties.csv", header=None, usecols=[0])
 test_indeg = pd.read_csv("datasets/test/graph_properties.csv", header=None, usecols=[1])
 test_avg_neigh_deg = pd.read_csv("datasets/test/graph_properties.csv", header=None, usecols=[2])
+test_years = pd.read_csv("datasets/test/years.csv", header=None)
 
 # Get the labels from the train dataset
 y_train = list()
@@ -88,35 +91,6 @@ with open('train.csv', 'r') as f:
 
 labels = np.unique(y_train)
 
-
-########
-# PIPELINE
-########
-##############################################################################
-# pipeline = Pipeline([
-#     # ('vect', CountVectorizer(decode_error='ignore',stop_words='english',max_df=0.6,ngram_range=(1,2),min_df=0.0)),
-#     ('vect', CountVectorizer(decode_error='ignore',stop_words='english')),
-#     ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
-#     #('sgd', SGDClassifier(max_iter=5,tol=None)),
-#     #('mnb', MultinomialNB(alpha=0.1)),
-#     #('logr', LogisticRegression()),
-#     ('logr', LogisticRegression(penalty='l2',tol=1e-05)),
-#     #('rfc', RandomForestClassifier()),
-#     #('knn', KNeighborsClassifier()),
-#     # ('NuSVC', NuSVC(probability=True)), # This one SUCKS
-#     # ('dtc', DecisionTreeClassifier()),
-#     # ('clf', MLPClassifier(hidden_layer_sizes=(5,3),verbose=True)),
-# ])
-
-# clf = MLPClassifier(  hidden_layer_sizes=(100, ),
-#                             activation='relu',
-#                             solver='adam',
-#                             alpha=0.0001,
-#                             momentum=0.9,
-#                             verbose=True
-#                         )
-
-
 #################
 # FEATURE UNION #
 #################
@@ -126,10 +100,17 @@ logr_abs = LogisticRegression(penalty='l2',tol=1e-05)
 logr_tit = LogisticRegression(penalty='l2',tol=1e-05)
 logr_aut = LogisticRegression(penalty='l2',tol=1e-05)
 logr_cit_in = LogisticRegression(penalty='l2',tol=1e-05)
+svc_cit_in = SVC(verbose=False,kernel='linear',probability=True)
 logr_cit_out = LogisticRegression(penalty='l2',tol=1e-05)
+svc_cit_out = SVC(verbose=False,kernel='linear',probability=True)
 logr_outdeg = LogisticRegression(penalty='l2',tol=1e-05)
 logr_indeg = LogisticRegression(penalty='l2',tol=1e-05)
 logr_avg_neigh_deg = LogisticRegression(penalty='l2',tol=1e-05)
+logr_year = LogisticRegression(penalty='l2', tol=1e-05)
+mnb_year = MultinomialNB(alpha=0.1)
+rf_year = RandomForestClassifier()
+logr_gprops = LogisticRegression(penalty='l2', tol=1e-05)
+logr_abs_st = LogisticRegression(penalty='l2',tol=1e-05)
 
 
 thres_all = None
@@ -141,41 +122,56 @@ pipeline = Pipeline([
         transformer_list=[
 
             # Pipeline for pulling features from abstracts
-            ('abstract', Pipeline([
-                ('selector', ItemSelector(key='abstract')),
+            # ('abstract', Pipeline([
+            #     ('selector', ItemSelector(key='abstract')),
+            #     ('vect', CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.6, min_df=0.001,ngram_range=(1,2))),
+            #     ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
+            #     ('sfm_abs', SelectFromModel(logr_abs,threshold=thres_all)),
+            # ])),
+
+            # Pipeline for pulling features from titles
+            # ('title', Pipeline([
+            #    ('selector', ItemSelector(key='title')),
+            #    ('vect', CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.18, min_df=0)),
+            #    ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
+            #    ('sfm_tit', SelectFromModel(logr_tit,threshold=thres_all)),
+            # ])),
+
+            ('abstract_title', Pipeline([
+                ('selector', ItemSelector(key='abstract_title')),
                 ('vect', CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.6, min_df=0.001,ngram_range=(1,2))),
                 ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
                 ('sfm_abs', SelectFromModel(logr_abs,threshold=thres_all)),
             ])),
 
-            # Pipeline for pulling features from titles
-            ('title', Pipeline([
-                ('selector', ItemSelector(key='title')),
-                ('vect', CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.18, min_df=0)),
-                ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
-                ('sfm_tit', SelectFromModel(logr_tit,threshold=thres_all)),
-            ])),
-
             # Pipeline for pulling features from authors
             ('author', Pipeline([
                 ('selector', ItemSelector(key='author')),
-                ('vect', CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.03, min_df=0)),
+                ('vect', CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.03, min_df=0,ngram_range=(1,2))),
                 ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
                 ('sfm_aut', SelectFromModel(logr_aut,threshold=0.55)),
             ])),
+
+            #('year', Pipeline([
+            #   ('selector', ItemSelector(key='year')),
+            #   #('vect', CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.03, min_df=0)),
+            #   #('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
+            #   ('vect_year', DictVectorizer()),
+            #   ('sfm_year', SelectFromModel(logr_year,threshold=thres_all)),
+            #])),
 
             # Pipeline for pulling features from authors
             ('incoming_citations', Pipeline([
                 ('selector', ItemSelector(key='cit_in')),
                 ('vect', CountVectorizer(decode_error='ignore')),
-                ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
+                ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=False)),
                 ('sfm_aut', SelectFromModel(logr_cit_in,threshold=0.15)),
             ])),
 
             ('outgoing_citations', Pipeline([
                 ('selector', ItemSelector(key='cit_out')),
                 ('vect', CountVectorizer(decode_error='ignore')),
-                ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
+                ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=False)),
                 ('sfm_aut', SelectFromModel(logr_cit_out,threshold=0.1)),
             ])),
 
@@ -191,6 +187,7 @@ pipeline = Pipeline([
                 ('selector', ItemSelector(key='abstract')),
                 ('stats', TextStats()),  # returns a list of dicts
                 ('vect_abs_stats', DictVectorizer()),
+                #('sfm_abs', SelectFromModel(logr_abs_st,threshold=0.2)),
             ])),
 
             # Pipeline for title stats
@@ -199,64 +196,38 @@ pipeline = Pipeline([
                ('stats', TextStats()),  # returns a list of dicts
                ('vect_titles_stats', DictVectorizer()),
             ])),
-
     
         ],
 
         # weight components in FeatureUnion - Check the result notes file for more
         transformer_weights={
-            'abstract': 1.40,
-            'title': 0.50,
-            'author': 1.2,
-            #'abs_stats': 0.9,
-            'incoming_citations': 1.3,
+            'abstract': 1.65,
+            'abstract_title': 1.65,
+            #'title': 0.50,
+            'author': 1.5,
+            #'abs_stats': 1.2,
+            'incoming_citations': 1.2,
             'outgoing_citations': 1.3,
 			#'gprops': 0.6,
             #'aut_stats': 0.7,
+            # 'year': 1.2,
         },
     )),
 
     # Use Logistic Regression again on the combined features
     #('sgd', SGDClassifier(loss='modified_huber')),
-	# ####################
-    # Default solver is liblinear, however I am trying more (with the best parameters from above).
-    # newton-cg --> score 1.997
-    # sag --> score 2.745 lol
-    # saga --> score 2.73 lol
-    # lbfgs --> score not good
-    # newton-cg with multi_class: multinomial --> score --> took much time. Try again
-    ('logr', LogisticRegression(penalty='l2',tol=0.0001)),
-    # Use an SVC classifier on the combined features
+    # Default solver is liblinear
+    ('logr', LogisticRegression(penalty='l2',tol=0.0001)), # C=1.25 results in a slight improvement
+    # Use an SVC classifier on the combined features - Takes forever
     #('svc', SVC(verbose=False,kernel='linear',probability=True)),
+    # Random forest?
+    #('rfc', RandomForestClassifier(n_estimators=10,max_features='log2',max_depth=5)),
+    #('clf', MLPClassifier(hidden_layer_sizes=(2,2,2,2),verbose=True)),
 ])
 
 # uncommenting more parameters will give better exploring power but will
 # increase processing time in a combinatorial way
 parameters = {
-#     'vect__min_df': (0, 0.00001),
-#     'vect__max_df': (0.2, 0.22, 0.25, 0.28, 0.3, 0.6, 0.65),
-#     # 'vect__ngram_range': ((1,1),(1,2),(1,3)),
-#     # 'tfidf__sublinear_tf': (False,True),
-#     #'sgd__loss': ('modified_huber','log'),
-#     #'mnb__alpha': (0.0001,0.001,0.01,0.1,1),
-#     #'logr__penalty': ('l1','l2'),
-#     'logr__tol': (0.0001,0.00001),
-#     #'logr__C': (1.0,0.8,0.5,0.1), # defaults to 1.0 which performs way better
-#     #'logr__class_weight': (None, 'balanced'), # defaults to None which performs way better than balanced
-#     #'clf__activation': ('relu','logistic'),
-#     #'clf__solver': ('adam','sgd'),
-#     #'clf__alpha': (0.000001, 0.0000001),
-#     #'clf__penalty': ('l2', 'elasticnet'),
-#     #'clf__momentum': (0.9,0.8),
-#     #'rfc__n_estimators': (10,4,8),
-#     #'rfc__criterion': ('gini','entropy'),
-#     #'knn__n_neighbors': (5,25,101),
-#     #'knn__weights': ('uniform','distance'),
-#     #'knn__p': (1,2),
-#     # 'NuSVC__nu': (0.01,0.4),
-#     # 'NuSVC__kernel': ('sigmoid','rbf'),
-#     # 'dtc__criterion': ('gini','entropy'),
-#     # 'dtc__class_weight': (None,'balanced')
 }
 
 log_loss_scorer = make_scorer(log_loss, greater_is_better=False, needs_proba=True)
@@ -290,7 +261,8 @@ x_test = np.dstack([
                         test_citations_out,
                         test_outdeg,
                         test_indeg,
-                        test_avg_neigh_deg
+                        test_avg_neigh_deg,
+                        test_years
                   ])
 x_test = np.array([t[0] for t in x_test])
 
