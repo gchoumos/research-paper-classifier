@@ -71,7 +71,6 @@ class MainExtractor(BaseEstimator, TransformerMixin):
             features['cit_in'][i] = cit_in if cit_in==cit_in else ''
             features['cit_out'][i] = cit_out if cit_out==cit_out else ''
             features['graph_props'][i] = graph_props if graph_props==graph_props else [0, 0, 0]
-            features['year'][i] = {'year': int(year)} if year==year else {'year': 0}
             features['abstract_title'][i] = abs_tit if abs_tit==abs_tit else ''
 
         #print("Features shape is {0}".format(features.shape))
