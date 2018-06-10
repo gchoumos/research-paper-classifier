@@ -21,7 +21,21 @@ from sklearn.tree import DecisionTreeClassifier
 from feature_union_sklearn import ItemSelector, TextStats, MainExtractor, GraphProperties
 import pdb
 
+from data_preprocessor import DataPreprocessor
+
 pd.options.mode.chained_assignment = None  # default='warn'
+
+choice = False
+while not choice:
+    c = input("Do you want to run the data preprocessor? (y/n):")
+    if c in ['Y','y','N','n']:
+        choice = True
+    else:
+        print("Invalid choice!")
+
+if c in ['Y','y']:
+    data_prep = DataPreprocessor()
+    data_prep.preprocess()
 
 tr_abs = pd.read_csv("datasets/train/abstracts.csv", header=None)
 tr_titles = pd.read_csv("datasets/train/titles.csv", header=None)
@@ -144,7 +158,7 @@ pipeline = Pipeline([
             #'abs_stats': 1.2,
             'incoming_citations': 1.2,
             'outgoing_citations': 1.3,
-			#'gprops': 0.6,
+            #'gprops': 0.6,
             #'aut_stats': 0.7,
         },
     )),
