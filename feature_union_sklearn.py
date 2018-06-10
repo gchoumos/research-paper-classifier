@@ -4,19 +4,8 @@
 
 # Modified by George Choumos
 
-from __future__ import print_function
-
-import numpy as np
-
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.decomposition import TruncatedSVD
-from sklearn.feature_extraction import DictVectorizer
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics import classification_report
-from sklearn.pipeline import FeatureUnion
-from sklearn.pipeline import Pipeline
-from sklearn.svm import SVC
-
+import numpy as np
 
 class ItemSelector(BaseEstimator, TransformerMixin):
     def __init__(self, key):
@@ -30,61 +19,51 @@ class ItemSelector(BaseEstimator, TransformerMixin):
 
 
 class TextStats(BaseEstimator, TransformerMixin):
-
     def fit(self, x, y=None):
         return self
 
-    # Number of Digit words?
     def transform(self, lines):
-        return [{'length': len(line),
-                 #'num_words': line.count(' '),
-                 'num_digits': sum(c.isdigit() for c in line),
-                 #'words_dash': len([w2 for w2 in line if '-' in w2]),
-                 #'avg_word_len': sum([len(word) for word in line.split()])/len(line.split()),
-                 }
-                for line in lines]
+        return [{
+                    'length': len(line),
+                    'num_digits': sum(c.isdigit() for c in line),
+                } for line in lines]
 
-# ################ #
-# Don't forget!
-# I'll change this later because I want to be sure that I am able to weight
-# the various properties separately
+
 class GraphProperties(BaseEstimator, TransformerMixin):
-
-    def fit(self, x, y=None):
-        return self
-
-    # Number of Digit words?
-    def transform(self, lines):
-        return [{'outdeg': float(line[0]),
-                 'indeg': float(line[1]),
-                 'avg_neigh_deg': float(line[2]),
-                 }
-                for line in lines]
-
-
-class AbstractTitleAuthorExtractor(BaseEstimator, TransformerMixin):
     def fit(self, x, y=None):
         return self
 
     def transform(self, lines):
-        features = np.recarray(shape=(len(lines),),
-                               dtype=[
-							       ('abstract', object),
-							       ('title', object),
-								   ('author', object),
-								   ('cit_in', object),
-								   ('cit_out', object),
-								   ('graph_props', object),
-                                   ('year', object),
-                                   ('abstract_title', object)
-								   #('indeg', object),
-								   #('avg_neigh_deg', object)
-							    ])
+        return [{
+                    'outdeg': float(line[0]),
+                    'indeg': float(line[1]),
+                    'avg_neigh_deg': float(line[2]),
+                } for line in lines]
+
+class MainExtractor(BaseEstimator, TransformerMixin):
+    def fit(self, x, y=None):
+        return self
+
+    def transform(self, lines):
+        features = np.recarray(
+                    shape=(len(lines),),
+                        dtype=[
+                                ('abstract', object),
+                                ('title', object),
+                                ('abstract_title', object),
+                                ('author', object),
+                                ('cit_in', object),
+                                ('cit_out', object),
+                                ('graph_props', object)
+							  ])
         for i, line in enumerate(lines):
-            abstract, title, author, cit_in, cit_out = line[0], line[1], line[2], line[3], line[4]
-            graph_props = [float(line[5]), float(line[6]), float(line[7])]
-            year = int(line[8])
+            abstract = line[0]
+            title = line[1],
             abs_tit = str(line[0]) + ' ' + str(line[1])
+            author = line[2]
+            cit_in = line[3]
+            cit_out = line[4]
+            graph_props = [float(line[5]), float(line[6]), float(line[7])]
 
             features['abstract'][i] = abstract if abstract==abstract else ''
             features['title'][i] = title if title==title else ''
@@ -92,11 +71,8 @@ class AbstractTitleAuthorExtractor(BaseEstimator, TransformerMixin):
             features['cit_in'][i] = cit_in if cit_in==cit_in else ''
             features['cit_out'][i] = cit_out if cit_out==cit_out else ''
             features['graph_props'][i] = graph_props if graph_props==graph_props else [0, 0, 0]
-            features['year'][i] = {'year': int(year)} if year==year else {'year': 0}
             features['abstract_title'][i] = abs_tit if abs_tit==abs_tit else ''
 
-        #print("MYSELF: Features shape is {0}".format(features.shape))
-        #print("MYSELF: {0}".format(features[0]))
-        #import pdb
-        #pdb.set_trace()
+        #print("Features shape is {0}".format(features.shape))
+        #print("{0}".format(features[0]))
         return features
