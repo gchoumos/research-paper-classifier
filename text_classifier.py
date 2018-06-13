@@ -25,6 +25,8 @@ from data_preprocessor import DataPreprocessor
 
 pd.options.mode.chained_assignment = None  # default='warn'
 
+import random
+
 choice = False
 while not choice:
     c = input("Do you want to run the data preprocessor? (y/n):")
@@ -77,6 +79,18 @@ with open('train.csv', 'r') as f:
         y_train.append(t[1][:-1])
 
 labels = np.unique(y_train)
+
+# More training data with resampling (add k lines)
+#indices = np.random.randint(0,all_train.shape[0],100) # 1.913 (train)  -- 1.81707  (kaggle)
+#indices = np.random.randint(0,all_train.shape[0],200) # 1.902 (train)  -- 1.81743  (kaggle)
+indices = np.random.randint(0,all_train.shape[0],400) # 1.879 (train)   -- 1.81339  (kaggle)
+#indices = np.random.randint(0,all_train.shape[0],800) # 1.835 (train)   -- 1.81956  (kaggle)
+#indices = random.sample(range(all_train.shape[0]),800) # 1.828 (train)  -- 1.81782  (kaggle)
+#indices = np.random.randint(0,all_train.shape[0],1000) # lol = 1.809 (train)
+
+all_train = np.append(all_train,all_train[indices],axis=0)
+# Same for y_train
+y_train = y_train + [y_train[i] for i in indices]
 
 #################
 # FEATURE UNION #
