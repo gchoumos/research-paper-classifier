@@ -19,6 +19,9 @@
         Institute
         er
         Yu
+
+Taken with
+tr -c '[:alnum:]' '[\n*]' < datasets/train/authors.csv | sort | uniq -c | sort -nr | head  -10
 """
 
 from gensim.parsing.preprocessing import STOPWORDS
@@ -30,6 +33,7 @@ import inflect
 import string
 import csv
 import re
+import community
 
 class DataPreprocessor(object):
     """ """
@@ -82,7 +86,7 @@ class DataPreprocessor(object):
         self.main_df = pd.read_csv(self.data_file)
         #print(main_df.head())
 
-    def read_citations(self,as_network=False):
+    def read_citations(self, as_network=False):
         """ Read the citations """
         if as_network:
             # Load the citations as a directed network graph
@@ -125,12 +129,17 @@ class DataPreprocessor(object):
         # The graph baseline is actually used here
         # (1) out-degree, (2) in-degree (3) average degree of neighborhood
         avg_n_deg = nx.average_neighbor_degree(self.G, nodes=id_list)
+        #jac_preds = nx.jaccard_coefficient(self.G)
+        communities = community.best_partition(self.G.to_undirected())
         gprop_list = list()
         for i in range(len(id_list)):
             outdeg = self.G.out_degree(id_list[i])
             indeg = self.G.in_degree(id_list[i])
             avg_ndeg = avg_n_deg[id_list[i]]
-            gprop_list.append([outdeg,indeg,avg_ndeg])
+            comm = communities[id_list[i]]
+            gprop_list.append([outdeg,indeg,avg_ndeg,comm])
+            # The N most similar nodes
+            
 
         if func == 'train':
             self.tr_gproperties = gprop_list
@@ -194,8 +203,12 @@ class DataPreprocessor(object):
             data = pd.Series([[word for word in d if not word.lower().startswith('univ')] for d in data])
 
             # Extra stuff for common names
-            #common_names = ['david','lee','kim','alex','michael','martin','park','sergei','john','lu','institute','er','yu']
-            #data = pd.Series([[word for word in d if word.lower() not in common_names] for d in data])
+            # common_names = ['david','lee','kim','alex','michael','martin',\
+            #                 'park','sergei','john','lu','institute','er','yu',\
+            #                 'odintsov','robert','paul','physics','peter','thomas',\
+            #                 'marcos','marco','daniel','br','andrea','andreas',\
+            #                 'jan','pope','da','das','van','igor','jame']
+            # data = pd.Series([[word for word in d if word.lower() not in common_names] for d in data])
         # Merge dash-including words together if the combined version exists
         # This one takes some time so by default it is not performed
         if mdash == True:
@@ -215,7 +228,7 @@ class DataPreprocessor(object):
                     if word in dash_words and word.replace('-','') in non_dashed:
                         data[j][k] = word.replace('-','')
 
-        if mplural == True:
+        if mplural == True and auth == False:
             # This will only recognize cases of a final s.
             candidates = set()
             singulars = set()
@@ -233,7 +246,7 @@ class DataPreprocessor(object):
                     if word in candidates and word[:-1] in singulars:
                         data[k][l] = word[:-1]
 
-        if singulars == True:
+        if singulars == True and auth == False:
             p = inflect.engine()
             for k,line in enumerate(data):
                 print("Plurals inflect - Line {0}".format(k))
@@ -243,7 +256,7 @@ class DataPreprocessor(object):
                     else:
                         data[k][l] = p.singular_noun(word)
 
-        if ing_ed == True:
+        if ing_ed == True and auth == False:
             candidates = set()
             not_inged = set()
             for line in data:

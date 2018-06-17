@@ -26,6 +26,7 @@ class TextStats(BaseEstimator, TransformerMixin):
         return [{
                     'length': len(line),
                     'num_digits': sum(c.isdigit() for c in line),
+                    #'big_words': len([x for x in line.split() if len(x)>9]),
                 } for line in lines]
 
 
@@ -38,6 +39,7 @@ class GraphProperties(BaseEstimator, TransformerMixin):
                     'outdeg': float(line[0]),
                     'indeg': float(line[1]),
                     'avg_neigh_deg': float(line[2]),
+                    #'comm': int(line[3]),
                 } for line in lines]
 
 class MainExtractor(BaseEstimator, TransformerMixin):
@@ -54,7 +56,8 @@ class MainExtractor(BaseEstimator, TransformerMixin):
                                 ('author', object),
                                 ('cit_in', object),
                                 ('cit_out', object),
-                                ('graph_props', object)
+                                ('graph_props', object),
+                                #('comm', object)
 							  ])
         for i, line in enumerate(lines):
             abstract = line[0]
@@ -63,7 +66,8 @@ class MainExtractor(BaseEstimator, TransformerMixin):
             author = line[2]
             cit_in = line[3]
             cit_out = line[4]
-            graph_props = [float(line[5]), float(line[6]), float(line[7])]
+            graph_props = [float(line[5]), float(line[6]), float(line[7])]#, int(line[8])]
+            # comm = {'comm': int(line[8])}
 
             features['abstract'][i] = abstract if abstract==abstract else ''
             features['title'][i] = title if title==title else ''
@@ -72,6 +76,7 @@ class MainExtractor(BaseEstimator, TransformerMixin):
             features['cit_out'][i] = cit_out if cit_out==cit_out else ''
             features['graph_props'][i] = graph_props if graph_props==graph_props else [0, 0, 0]
             features['abstract_title'][i] = abs_tit if abs_tit==abs_tit else ''
+            # features['comm'][i] = comm if comm==comm else -1
 
         #print("Features shape is {0}".format(features.shape))
         #print("{0}".format(features[0]))
