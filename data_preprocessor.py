@@ -25,6 +25,7 @@ tr -c '[:alnum:]' '[\n*]' < datasets/train/authors.csv | sort | uniq -c | sort -
 """
 
 from gensim.parsing.preprocessing import STOPWORDS
+from networkx.algorithms import approximation as apxa
 from settings import SETTINGS
 import networkx as nx
 import pandas as pd
@@ -34,6 +35,9 @@ import string
 import csv
 import re
 import community
+from random import choice
+from gensim.models import Word2Vec
+
 
 class DataPreprocessor(object):
     """ """
@@ -48,7 +52,9 @@ class DataPreprocessor(object):
 
         # train and test graph properties list
         self.tr_gproperties = list()
+        self.tr_embs = list()
         self.te_gproperties = list()
+        self.te_embs = list()
 
         self.train_ids = list()
         self.y_train = list()
@@ -119,6 +125,43 @@ class DataPreprocessor(object):
             for line in f:
                 self.test_ids.append(line[:-2])
 
+    def random_walk(self, G, node, walk_length):
+        ##################
+        # Your code here #
+        ##################
+        walk = [node]
+        for i in range(walk_length):
+            successors = list(self.G.successors(walk[-1]))
+            if len(successors) == 0:
+                break
+            successor = choice(successors)
+            walk.append(successor)
+
+        return walk
+
+
+    def generate_walks(self, graph, num_walks, walk_length):
+        ##################
+        # Your code here #
+        ##################
+        walks = []
+        for node in graph.nodes:
+            node_walks = []
+            for i in range(num_walks):
+                node_walks = self.random_walk(graph,node,walk_length)
+            walks.append(node_walks)
+
+        return walks
+
+
+    def learn_embeddings(self, graph, walks, window_size, d):
+        ##################
+        # Your code here #
+        ##################
+        model = Word2Vec(walks, size=d, min_count=0, sg=1, workers=1, iter=5, window=window_size)
+        embeddings = model.wv
+        return embeddings
+
     def compute_graph_properties(self, func='train'):
         """
             Compute the graph properties for the train/test graph.
@@ -127,10 +170,22 @@ class DataPreprocessor(object):
         # Choose between train and test ids depending on the func arg
         id_list = self.train_ids if func == 'train' else self.test_ids
         # The graph baseline is actually used here
+
+        # Generate node embeddings
+        d = 100
+        walks = self.generate_walks(self.G.to_undirected(), 10, 20)
+        embeddings = self.learn_embeddings(self.G, walks, 10, d)
+
         # (1) out-degree, (2) in-degree (3) average degree of neighborhood
         avg_n_deg = nx.average_neighbor_degree(self.G, nodes=id_list)
         #jac_preds = nx.jaccard_coefficient(self.G)
         communities = community.best_partition(self.G.to_undirected())
+        # self_loop_edges = [x for x in self.G.edges if x[0]==x[1]]
+        # G_ne = self.G.to_undirected()
+        # for x in self_loop_edges:
+        #     G_ne.remove_edge(x[0],x[1])
+        # k_components = apxa.k_components(G_ne)
+        embs = np.zeros((len(id_list),d))
         gprop_list = list()
         for i in range(len(id_list)):
             outdeg = self.G.out_degree(id_list[i])
@@ -138,13 +193,14 @@ class DataPreprocessor(object):
             avg_ndeg = avg_n_deg[id_list[i]]
             comm = communities[id_list[i]]
             gprop_list.append([outdeg,indeg,avg_ndeg,comm])
-            # The N most similar nodes
-            
+            embs[i] = embeddings[id_list[i]]
 
         if func == 'train':
             self.tr_gproperties = gprop_list
+            self.tr_embs = embs
         else:
             self.te_gproperties = gprop_list
+            self.te_embs = embs
 
 
     def fill_dataframes(self, func='train'):
@@ -310,11 +366,16 @@ class DataPreprocessor(object):
         self.write_to_file(self.tr_auth,"datasets/train/authors.csv")
         self.write_to_file(self.tr_citi,"datasets/train/incoming_citations.csv")
         self.write_to_file(self.tr_cito,"datasets/train/outgoing_citations.csv")
+        #self.write_to_file(self.tr_embs,"datasets/train/node_embeddings.csv")
 
         # Use the csv writer for the graph properties
         with open("datasets/train/graph_properties.csv", "w") as f:
             writer = csv.writer(f)
             writer.writerows(self.tr_gproperties)
+
+        with open("datasets/train/node_embeddings.csv", "w") as f:
+            writer = csv.writer(f)
+            writer.writerows(self.tr_embs)
 
         # Write to test files for the main program to use
         self.write_to_file(self.te_abst,"datasets/test/abstracts.csv")
@@ -322,8 +383,13 @@ class DataPreprocessor(object):
         self.write_to_file(self.te_auth,"datasets/test/authors.csv")
         self.write_to_file(self.te_citi,"datasets/test/incoming_citations.csv")
         self.write_to_file(self.te_cito,"datasets/test/outgoing_citations.csv")
+        #self.write_to_file(self.te_embs,"datasets/test/node_embeddings.csv")
 
         # Use the csv writer for the graph properties
         with open("datasets/test/graph_properties.csv", "w") as f:
             writer = csv.writer(f)
             writer.writerows(self.te_gproperties)
+
+        with open("datasets/test/node_embeddings.csv", "w") as f:
+            writer = csv.writer(f)
+            writer.writerows(self.te_embs)

@@ -18,7 +18,7 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.svm import NuSVC, SVC
 from sklearn.tree import DecisionTreeClassifier
-from feature_union_sklearn import ItemSelector, TextStats, MainExtractor, GraphProperties
+from feature_union_sklearn import ItemSelector, TextStats, AuthorStats, MainExtractor, GraphProperties
 import pdb
 
 from data_preprocessor import DataPreprocessor
@@ -50,6 +50,7 @@ tr_outdeg = pd.read_csv("datasets/train/graph_properties.csv", header=None, usec
 tr_indeg = pd.read_csv("datasets/train/graph_properties.csv", header=None, usecols=[1])
 tr_avg_ndeg = pd.read_csv("datasets/train/graph_properties.csv", header=None, usecols=[2])
 tr_comm = pd.read_csv("datasets/train/graph_properties.csv", header=None, usecols=[3])
+tr_embs = pd.read_csv("datasets/train/node_embeddings.csv", header=None)
 
 all_train = np.dstack([
                         tr_abs,
@@ -60,9 +61,11 @@ all_train = np.dstack([
                         tr_outdeg,
                         tr_indeg,
                         tr_avg_ndeg,
-                        tr_comm
+                        tr_comm,
                       ])
+
 all_train = np.array([t[0] for t in all_train])
+all_train = np.hstack((all_train, tr_embs))
 
 te_abs = pd.read_csv("datasets/test/abstracts.csv", header=None)
 te_titles = pd.read_csv("datasets/test/titles.csv", header=None)
@@ -73,6 +76,7 @@ te_outdeg = pd.read_csv("datasets/test/graph_properties.csv", header=None, useco
 te_indeg = pd.read_csv("datasets/test/graph_properties.csv", header=None, usecols=[1])
 te_avg_ndeg = pd.read_csv("datasets/test/graph_properties.csv", header=None, usecols=[2])
 te_comm = pd.read_csv("datasets/test/graph_properties.csv", header=None, usecols=[3])
+te_embs = pd.read_csv("datasets/test/node_embeddings.csv", header=None)
 
 # Get the labels from the train dataset
 y_train = list()
@@ -130,6 +134,7 @@ logr_cit_in = LogisticRegression(penalty='l2', tol=1e-05)
 logr_cit_out = LogisticRegression(penalty='l2', tol=1e-05)
 logr_gprops = LogisticRegression(penalty='l2', tol=1e-05)
 logr_comm = LogisticRegression(penalty='l2', tol=1e-05)
+logr_embs = LogisticRegression(penalty='l2', tol=1e-05)
 
 thres_all = None
 pipeline = Pipeline([
@@ -215,9 +220,17 @@ pipeline = Pipeline([
             # Pipeline for title stats
             ('aut_stats', Pipeline([
                ('selector', ItemSelector(key='author')),
-               ('stats', TextStats()),  # returns a list of dicts
+               ('stats', AuthorStats()),  # returns a list of dicts
                ('vect_aut_stats', DictVectorizer()),
             ])),
+
+
+            # Node Embeddings attempt
+            ('embeddings', Pipeline([
+               ('selector', ItemSelector(key='embeddings')),
+               ('sfm_embs', SelectFromModel(logr_embs,threshold=thres_all)),
+            ])),
+
 
             # ('communities', Pipeline([
             #     ('selector', ItemSelector(key='comm')),
@@ -240,7 +253,7 @@ pipeline = Pipeline([
             'incoming_citations': 1.20, # 1.20 --> 1.917 (started with 1.2)
             'outgoing_citations': 1.30, # 1.30 --> 1.917 (started with 1.3)
             'gprops': 0.70,             # None --> 1.917 (started with None)
-            'aut_stats': 0.7,           # None --> 1.917 (started with 0.7)
+            #'aut_stats': 0.70,           # None --> 1.917 (started with 0.7)
             #'communities': 8
         },
     )),
@@ -254,7 +267,7 @@ parameters = {
 }
 
 log_loss_scorer = make_scorer(log_loss, greater_is_better=False, needs_proba=True)
-grid_search = GridSearchCV(pipeline, parameters, n_jobs=-1, verbose=10,scoring=log_loss_scorer)
+grid_search = GridSearchCV(pipeline, parameters, n_jobs=1, verbose=10,scoring=log_loss_scorer)
 grid_search.fit(all_train,y_train)
 
 x_test = np.dstack([
@@ -266,9 +279,10 @@ x_test = np.dstack([
                         te_outdeg,
                         te_indeg,
                         te_avg_ndeg,
-                        te_comm
+                        te_comm,
                   ])
 x_test = np.array([t[0] for t in x_test])
+x_test = np.hstack((x_test, te_embs))
 
 print("Best score: %0.3f" % grid_search.best_score_)
 print("Best parameters set:")
