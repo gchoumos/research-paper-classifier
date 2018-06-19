@@ -8,3 +8,10 @@ result_notes.txt
 subm*.csv
 unsubmitted*.csv
 ensemble_classifier.*
+community_louvain.py
+community_status.py
+graph_community_detection.py
+graph_node_embeddings.py
+model.py
+text_cnn.py
+utils.py

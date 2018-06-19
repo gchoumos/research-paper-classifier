@@ -76,6 +76,82 @@ class DataPreprocessor(object):
         self.te_cito = list()
 
 
+        self.do_abs = False
+        self.do_tit = False
+        self.do_aut = False
+        self.do_cit = False
+        self.do_gra = False
+
+        ch = False
+        regen_all = False
+        while not ch:
+            c = input("Regenerate everything? (y/n):")
+            if c in ['Y','y']:
+                self.do_abs = True
+                self.do_tit = True
+                self.do_aut = True
+                self.do_gra = True
+                self.do_cit = True
+                regen_all = True
+                break
+            elif c in ['N','n']:
+                ch = True
+            else:
+                print("Invalid choice!")
+
+        if regen_all == False:
+            ch = False
+            while not ch:
+                c = input("Regenerate abstracts? (y/n):")
+                if c in ['Y','y']:
+                    self.do_abs = True
+                    break
+                elif c not in ['N','n']:
+                    print("Invalid choice!")
+                else:
+                    break
+
+            while not ch:
+                c = input("Regenerate titles? (y/n):")
+                if c in ['Y','y']:
+                    self.do_tit = True
+                    break
+                elif c not in ['N','n']:
+                    print("Invalid choice!")
+                else:
+                    break
+
+            while not ch:
+                c = input("Regenerate authors? (y/n):")
+                if c in ['Y','y']:
+                    self.do_aut = True
+                    break
+                elif c not in ['N','n']:
+                    print("Invalid choice!")
+                else:
+                    break
+
+            while not ch:
+                c = input("Regenerate citations (text version)? (y/n):")
+                if c in ['Y','y']:
+                    self.do_cit = True
+                    break
+                elif c not in ['N','n']:
+                    print("Invalid choice!")
+                else:
+                    break
+
+            while not ch:
+                c = input("Regenerate graph properties? (y/n):")
+                if c in ['Y','y']:
+                    self.do_gra = True
+                    break
+                elif c not in ['N','n']:
+                    print("Invalid choice!")
+                else:
+                    break
+
+
     def write_to_file(self, data, filename, numbers=False):
         with open(filename,"w") as f:
             if numbers == True:
@@ -90,7 +166,7 @@ class DataPreprocessor(object):
     def read_main_data(self):
         """ Read the main dataset (node information) """
         self.main_df = pd.read_csv(self.data_file)
-        #print(main_df.head())
+
 
     def read_citations(self, as_network=False):
         """ Read the citations """
@@ -106,7 +182,7 @@ class DataPreprocessor(object):
                                  delimiter='\t',
                                  header=None,
                                  names=['paper_id','cites'])
-        #print(cit_df.head())
+
 
     def read_train_data(self):
         """ Read data from the train file """
@@ -118,6 +194,7 @@ class DataPreprocessor(object):
                 self.y_train.append(t[1][:-1])
         self.labels = np.unique(self.y_train)
 
+
     def read_test_data(self):
         """ Read data from the test file """
         with open(self.test_file, 'r') as f:
@@ -125,10 +202,8 @@ class DataPreprocessor(object):
             for line in f:
                 self.test_ids.append(line[:-2])
 
+
     def random_walk(self, G, node, walk_length):
-        ##################
-        # Your code here #
-        ##################
         walk = [node]
         for i in range(walk_length):
             successors = list(self.G.successors(walk[-1]))
@@ -141,9 +216,6 @@ class DataPreprocessor(object):
 
 
     def generate_walks(self, graph, num_walks, walk_length):
-        ##################
-        # Your code here #
-        ##################
         walks = []
         for node in graph.nodes:
             node_walks = []
@@ -155,12 +227,12 @@ class DataPreprocessor(object):
 
 
     def learn_embeddings(self, graph, walks, window_size, d):
-        ##################
-        # Your code here #
-        ##################
-        model = Word2Vec(walks, size=d, min_count=0, sg=1, workers=1, iter=5, window=window_size)
+        epochs = SETTINGS['node_embs_epochs']
+
+        model = Word2Vec(walks, size=d, min_count=0, sg=1, workers=1, iter=epochs, window=window_size)
         embeddings = model.wv
         return embeddings
+
 
     def compute_graph_properties(self, func='train'):
         """
@@ -169,22 +241,17 @@ class DataPreprocessor(object):
 
         # Choose between train and test ids depending on the func arg
         id_list = self.train_ids if func == 'train' else self.test_ids
-        # The graph baseline is actually used here
 
         # Generate node embeddings
-        d = 100
-        walks = self.generate_walks(self.G.to_undirected(), 10, 20)
-        embeddings = self.learn_embeddings(self.G, walks, 10, d)
+        d = SETTINGS['node_embs_dim']
+        num_walks = SETTINGS['num_walks']
+        walk_length = SETTINGS['walk_length']
+        walks = self.generate_walks(self.G.to_undirected(), num_walks, walk_length)
+        embeddings = self.learn_embeddings(self.G, walks, num_walks, d)
 
         # (1) out-degree, (2) in-degree (3) average degree of neighborhood
         avg_n_deg = nx.average_neighbor_degree(self.G, nodes=id_list)
-        #jac_preds = nx.jaccard_coefficient(self.G)
         communities = community.best_partition(self.G.to_undirected())
-        # self_loop_edges = [x for x in self.G.edges if x[0]==x[1]]
-        # G_ne = self.G.to_undirected()
-        # for x in self_loop_edges:
-        #     G_ne.remove_edge(x[0],x[1])
-        # k_components = apxa.k_components(G_ne)
         embs = np.zeros((len(id_list),d))
         gprop_list = list()
         for i in range(len(id_list)):
@@ -345,51 +412,53 @@ class DataPreprocessor(object):
         self.read_test_data()
         self.read_main_data()
         self.read_citations()
-        self.read_citations(as_network=True)
-        self.compute_graph_properties(func='train')
         self.fill_dataframes(func='train')
-        self.compute_graph_properties(func='test')
         self.fill_dataframes(func='test')
 
-        # Transform the train data
-        self.tr_abst = self.transform_data(self.tr_abst, self.stopwords, self.punct, rm_sw=True, rm_smw=True, rm_dg=True, mdash=True)
-        self.tr_titl = self.transform_data(self.tr_titl, self.stopwords, self.punct, rm_sw=True, rm_smw=True, rm_dg=True, mdash=True)
-        self.tr_auth = self.transform_data(self.tr_auth, self.stopwords, self.punct, rm_sw=True, rm_smw=True, rm_dg=True, mdash=True, auth=True)
-        # Transform the test data
-        self.te_abst = self.transform_data(self.te_abst, self.stopwords, self.punct, rm_sw=True, rm_smw=True, rm_dg=True, mdash=True)
-        self.te_titl = self.transform_data(self.te_titl, self.stopwords, self.punct, rm_sw=True, rm_smw=True, rm_dg=True, mdash=True)
-        self.te_auth = self.transform_data(self.te_auth, self.stopwords, self.punct, rm_sw=True, rm_smw=True, rm_dg=True, mdash=True, auth=True)
+        if self.do_gra:
+            self.read_citations(as_network=True)
+            self.compute_graph_properties(func='train')
+            self.compute_graph_properties(func='test')
+
+        if self.do_abs:
+            self.tr_abst = self.transform_data(self.tr_abst, self.stopwords, self.punct, rm_sw=True, rm_smw=True, rm_dg=True, mdash=True)
+            self.te_abst = self.transform_data(self.te_abst, self.stopwords, self.punct, rm_sw=True, rm_smw=True, rm_dg=True, mdash=True)
+            self.write_to_file(self.tr_abst,"datasets/train/abstracts.csv")
+            self.write_to_file(self.te_abst,"datasets/test/abstracts.csv")
+
+        if self.do_tit:
+            self.tr_titl = self.transform_data(self.tr_titl, self.stopwords, self.punct, rm_sw=True, rm_smw=True, rm_dg=True, mdash=True)
+            self.te_titl = self.transform_data(self.te_titl, self.stopwords, self.punct, rm_sw=True, rm_smw=True, rm_dg=True, mdash=True)
+            self.write_to_file(self.tr_titl,"datasets/train/titles.csv")
+            self.write_to_file(self.te_titl,"datasets/test/titles.csv")
+
+        if self.do_aut:
+            self.tr_auth = self.transform_data(self.tr_auth, self.stopwords, self.punct, rm_sw=True, rm_smw=True, rm_dg=True, mdash=True, auth=True)
+            self.te_auth = self.transform_data(self.te_auth, self.stopwords, self.punct, rm_sw=True, rm_smw=True, rm_dg=True, mdash=True, auth=True)
+            self.write_to_file(self.tr_auth,"datasets/train/authors.csv")
+            self.write_to_file(self.te_auth,"datasets/test/authors.csv")
 
         # Write to train files for the main program to use
-        self.write_to_file(self.tr_abst,"datasets/train/abstracts.csv")
-        self.write_to_file(self.tr_titl,"datasets/train/titles.csv")
-        self.write_to_file(self.tr_auth,"datasets/train/authors.csv")
-        self.write_to_file(self.tr_citi,"datasets/train/incoming_citations.csv")
-        self.write_to_file(self.tr_cito,"datasets/train/outgoing_citations.csv")
-        #self.write_to_file(self.tr_embs,"datasets/train/node_embeddings.csv")
+        if self.do_cit:
+            self.write_to_file(self.tr_citi,"datasets/train/incoming_citations.csv")
+            self.write_to_file(self.tr_cito,"datasets/train/outgoing_citations.csv")
+            self.write_to_file(self.te_citi,"datasets/test/incoming_citations.csv")
+            self.write_to_file(self.te_cito,"datasets/test/outgoing_citations.csv")
 
         # Use the csv writer for the graph properties
-        with open("datasets/train/graph_properties.csv", "w") as f:
-            writer = csv.writer(f)
-            writer.writerows(self.tr_gproperties)
+        if self.do_gra:
+            with open("datasets/train/graph_properties.csv", "w") as f:
+                writer = csv.writer(f)
+                writer.writerows(self.tr_gproperties)
 
-        with open("datasets/train/node_embeddings.csv", "w") as f:
-            writer = csv.writer(f)
-            writer.writerows(self.tr_embs)
+            with open("datasets/test/graph_properties.csv", "w") as f:
+                writer = csv.writer(f)
+                writer.writerows(self.te_gproperties)
 
-        # Write to test files for the main program to use
-        self.write_to_file(self.te_abst,"datasets/test/abstracts.csv")
-        self.write_to_file(self.te_titl,"datasets/test/titles.csv")
-        self.write_to_file(self.te_auth,"datasets/test/authors.csv")
-        self.write_to_file(self.te_citi,"datasets/test/incoming_citations.csv")
-        self.write_to_file(self.te_cito,"datasets/test/outgoing_citations.csv")
-        #self.write_to_file(self.te_embs,"datasets/test/node_embeddings.csv")
+            with open("datasets/train/node_embeddings.csv", "w") as f:
+                writer = csv.writer(f)
+                writer.writerows(self.tr_embs)
 
-        # Use the csv writer for the graph properties
-        with open("datasets/test/graph_properties.csv", "w") as f:
-            writer = csv.writer(f)
-            writer.writerows(self.te_gproperties)
-
-        with open("datasets/test/node_embeddings.csv", "w") as f:
-            writer = csv.writer(f)
-            writer.writerows(self.te_embs)
+            with open("datasets/test/node_embeddings.csv", "w") as f:
+                writer = csv.writer(f)
+                writer.writerows(self.te_embs)

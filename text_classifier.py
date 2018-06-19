@@ -18,7 +18,7 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.svm import NuSVC, SVC
 from sklearn.tree import DecisionTreeClassifier
-from feature_union_sklearn import ItemSelector, TextStats, AuthorStats, MainExtractor, GraphProperties
+from feature_union_sklearn import ItemSelector, TextStats, AuthorStats, MainExtractor, GraphProperties, NodeEmbeddingsVectorizer
 import pdb
 
 from data_preprocessor import DataPreprocessor
@@ -29,11 +29,11 @@ import math
 import random
 from collections import Counter
 
-choice = False
-while not choice:
+ch = False
+while not ch:
     c = input("Do you want to run the data preprocessor? (y/n):")
     if c in ['Y','y','N','n']:
-        choice = True
+        ch = True
     else:
         print("Invalid choice!")
 
@@ -226,8 +226,9 @@ pipeline = Pipeline([
 
 
             # Node Embeddings attempt
-            ('embeddings', Pipeline([
+            ('node_embeddings', Pipeline([
                ('selector', ItemSelector(key='embeddings')),
+               ('node_embs_vect', NodeEmbeddingsVectorizer()),
                ('sfm_embs', SelectFromModel(logr_embs,threshold=thres_all)),
             ])),
 
@@ -254,7 +255,12 @@ pipeline = Pipeline([
             'outgoing_citations': 1.30, # 1.30 --> 1.917 (started with 1.3)
             'gprops': 0.70,             # None --> 1.917 (started with None)
             #'aut_stats': 0.70,           # None --> 1.917 (started with 0.7)
-            #'communities': 8
+            #'communities': 8,
+            'node_embeddings': 0.95, # 0.95: 1.915 424 (915 754)
+            # best node embs with
+            #   num_walks       10
+            #   walk length     20
+            #   epochs (iter):  5
         },
     )),
 
@@ -267,7 +273,7 @@ parameters = {
 }
 
 log_loss_scorer = make_scorer(log_loss, greater_is_better=False, needs_proba=True)
-grid_search = GridSearchCV(pipeline, parameters, n_jobs=1, verbose=10,scoring=log_loss_scorer)
+grid_search = GridSearchCV(pipeline, parameters, n_jobs=-1, verbose=10,scoring=log_loss_scorer)
 grid_search.fit(all_train,y_train)
 
 x_test = np.dstack([

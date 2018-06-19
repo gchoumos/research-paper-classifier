@@ -52,6 +52,13 @@ class GraphProperties(BaseEstimator, TransformerMixin):
                     #'comm': int(line[3]),
                 } for line in lines]
 
+class NodeEmbeddingsVectorizer(BaseEstimator, TransformerMixin):
+    def fit(self, x, y=None):
+        return self
+
+    def transform(self, lines):
+        return [[float(x) for x in line.split()] for line in lines]
+
 class MainExtractor(BaseEstimator, TransformerMixin):
     def fit(self, x, y=None):
         return self
@@ -79,9 +86,7 @@ class MainExtractor(BaseEstimator, TransformerMixin):
             cit_out = line[4]
             graph_props = [float(line[5]), float(line[6]), float(line[7])]#, int(line[8])]
             # comm = {'comm': int(line[8])}
-            embs = line[9:]
-            import pdb
-            pdb.set_trace()
+            embs = ' '.join([str(x) for x in line[9:]])
 
             features['abstract'][i] = abstract if abstract==abstract else ''
             features['title'][i] = title if title==title else ''
@@ -91,7 +96,7 @@ class MainExtractor(BaseEstimator, TransformerMixin):
             features['graph_props'][i] = graph_props if graph_props==graph_props else [0, 0, 0]
             features['abstract_title'][i] = abs_tit if abs_tit==abs_tit else ''
             # features['comm'][i] = comm if comm==comm else -1
-            features['embeddings'][i] = embs if embs.all()==embs.all() else np.zeros(100)
+            features['embeddings'][i] = embs
 
         #print("Features shape is {0}".format(features.shape))
         #print("{0}".format(features[0]))
