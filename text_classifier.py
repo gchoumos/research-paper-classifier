@@ -18,7 +18,7 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.svm import NuSVC, SVC
 from sklearn.tree import DecisionTreeClassifier
-from feature_union_sklearn import ItemSelector, TextStats, AuthorStats, MainExtractor, GraphProperties, NodeEmbeddingsVectorizer
+from feature_union_sklearn import ItemSelector, TextStats, AuthorStats, MainExtractor, GraphProperties, NodeEmbeddingsVectorizer, WordEmbeddingsVectorizer
 import pdb
 
 from data_preprocessor import DataPreprocessor
@@ -51,6 +51,7 @@ tr_indeg = pd.read_csv("datasets/train/graph_properties.csv", header=None, useco
 tr_avg_ndeg = pd.read_csv("datasets/train/graph_properties.csv", header=None, usecols=[2])
 tr_comm = pd.read_csv("datasets/train/graph_properties.csv", header=None, usecols=[3])
 tr_embs = pd.read_csv("datasets/train/node_embeddings.csv", header=None)
+tr_w_embs = pd.read_csv("datasets/train/word_embeddings.csv", header=None)
 
 all_train = np.dstack([
                         tr_abs,
@@ -66,6 +67,7 @@ all_train = np.dstack([
 
 all_train = np.array([t[0] for t in all_train])
 all_train = np.hstack((all_train, tr_embs))
+all_train = np.hstack((all_train, tr_w_embs))
 
 te_abs = pd.read_csv("datasets/test/abstracts.csv", header=None)
 te_titles = pd.read_csv("datasets/test/titles.csv", header=None)
@@ -77,6 +79,7 @@ te_indeg = pd.read_csv("datasets/test/graph_properties.csv", header=None, usecol
 te_avg_ndeg = pd.read_csv("datasets/test/graph_properties.csv", header=None, usecols=[2])
 te_comm = pd.read_csv("datasets/test/graph_properties.csv", header=None, usecols=[3])
 te_embs = pd.read_csv("datasets/test/node_embeddings.csv", header=None)
+te_w_embs = pd.read_csv("datasets/test/word_embeddings.csv", header=None)
 
 # Get the labels from the train dataset
 y_train = list()
@@ -107,7 +110,7 @@ labels = np.unique(y_train)
 # print("We are adding {0} extra datapoints".format(len(indices)))
 
 # More training data with resampling (add k lines)
-#indices = np.random.randint(0,all_train.shape[0],100) # 1.913 (train)  -- 1.81707  (kaggle)
+# indices = np.random.randint(0,all_train.shape[0],100) # 1.913 (train)  -- 1.81707  (kaggle)
 # balanced: 114 datapoints - 1.913 (train)  -- not submitted (kaggle)
 #indices = np.random.randint(0,all_train.shape[0],200) # 1.902 (train)  -- 1.81743  (kaggle)
 # balanced: 228 datapoints - 1.898 (train)  -- not submitted (kaggle)
@@ -135,6 +138,7 @@ logr_cit_out = LogisticRegression(penalty='l2', tol=1e-05)
 logr_gprops = LogisticRegression(penalty='l2', tol=1e-05)
 logr_comm = LogisticRegression(penalty='l2', tol=1e-05)
 logr_embs = LogisticRegression(penalty='l2', tol=1e-05)
+logr_w_embs = LogisticRegression(penalty='l2', tol=1e-05)
 
 thres_all = None
 pipeline = Pipeline([
@@ -224,6 +228,11 @@ pipeline = Pipeline([
                ('vect_aut_stats', DictVectorizer()),
             ])),
 
+            ('abs_embeddings', Pipeline([
+                ('selector', ItemSelector(key='w_embeddings')),
+                ('word_embs_vect', WordEmbeddingsVectorizer()),
+                ('sfm_w_embs', SelectFromModel(logr_w_embs,threshold=thres_all)),
+            ])),
 
             # Node Embeddings attempt
             ('node_embeddings', Pipeline([
@@ -231,7 +240,6 @@ pipeline = Pipeline([
                ('node_embs_vect', NodeEmbeddingsVectorizer()),
                ('sfm_embs', SelectFromModel(logr_embs,threshold=thres_all)),
             ])),
-
 
             # ('communities', Pipeline([
             #     ('selector', ItemSelector(key='comm')),
@@ -244,23 +252,23 @@ pipeline = Pipeline([
         transformer_weights={
             'abstract': 1.65,
             'abstract_title': 1.65,
-            'abstract_title_uni': 1.30, # 1.30 --> 1.917 (started with 1.65)
-            'abstract_title_bi': 0.85,  # 0.85 --> 1.917 (started with 1.65)
-            'abstract_title_tri': 1.05,
-            'abstract_title_quad': 0.65, # 1.9 17 248
-            #'title': 0.50,
-            'author': 1.60,             # 1.60 --> 1.917 (started with 1.50)
-            #'abs_stats': 1.30,         # None --> 1.917 (started with None)
-            'incoming_citations': 1.20, # 1.20 --> 1.917 (started with 1.2)
-            'outgoing_citations': 1.30, # 1.30 --> 1.917 (started with 1.3)
-            'gprops': 0.70,             # None --> 1.917 (started with None)
-            #'aut_stats': 0.70,           # None --> 1.917 (started with 0.7)
+            'abstract_title_uni': 1.30, # 1.30 --> 1.910245
+            'abstract_title_bi': 0.75,  # 0.75 --> 1.910245
+            'abstract_title_tri': 1.05, # 1.05 --> 1.910245
+            'abstract_title_quad': 0.75,# 0.75 --> 1.910245
+            'author': 1.60,             # 1.60 --> 1.910245
+            # 'abs_stats': 0.3,         # None --> 1.910245
+            'incoming_citations': 1.20, # 1.20 --> 1.910245
+            'outgoing_citations': 1.30, # 1.30 --> 1.910245
+            'gprops': 0.70,             # None --> 1.910245
+            # 'aut_stats': 0.30,        # None --> 1.910245
             #'communities': 8,
-            'node_embeddings': 0.95, # 0.95: 1.915 424 (915 754)
+            'node_embeddings': 0.35,    # 0.35 --> 1.910245
+            'abs_embeddings': 0.35,     # 0.35 --> 1.910245
             # best node embs with
             #   num_walks       10
             #   walk length     20
-            #   epochs (iter):  5
+            #   epochs (iter):  4
         },
     )),
 
@@ -289,6 +297,7 @@ x_test = np.dstack([
                   ])
 x_test = np.array([t[0] for t in x_test])
 x_test = np.hstack((x_test, te_embs))
+x_test = np.hstack((x_test, te_w_embs))
 
 print("Best score: %0.3f" % grid_search.best_score_)
 print("Best parameters set:")

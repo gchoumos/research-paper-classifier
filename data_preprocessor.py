@@ -34,9 +34,10 @@ import inflect
 import string
 import csv
 import re
+import gensim
 import community
 from random import choice
-from gensim.models import Word2Vec
+from gensim.models import Word2Vec, Doc2Vec
 
 
 class DataPreprocessor(object):
@@ -49,6 +50,8 @@ class DataPreprocessor(object):
 
         self.stopwords = set(STOPWORDS)
         self.punct = '|'.join([re.escape(x) for x in string.punctuation.replace('-','')])
+
+        self.model = []
 
         # train and test graph properties list
         self.tr_gproperties = list()
@@ -67,6 +70,7 @@ class DataPreprocessor(object):
         self.tr_auth = list()
         self.tr_citi = list()
         self.tr_cito = list()
+        self.tr_w_embs = list()
 
         # Test stuff
         self.te_abst = list()
@@ -74,13 +78,14 @@ class DataPreprocessor(object):
         self.te_auth = list()
         self.te_citi = list()
         self.te_cito = list()
-
+        self.te_w_embs = list()
 
         self.do_abs = False
         self.do_tit = False
         self.do_aut = False
         self.do_cit = False
         self.do_gra = False
+        self.do_w_embs = False
 
         ch = False
         regen_all = False
@@ -92,6 +97,7 @@ class DataPreprocessor(object):
                 self.do_aut = True
                 self.do_gra = True
                 self.do_cit = True
+                self.do_w_embs = True
                 regen_all = True
                 break
             elif c in ['N','n']:
@@ -145,6 +151,16 @@ class DataPreprocessor(object):
                 c = input("Regenerate graph properties? (y/n):")
                 if c in ['Y','y']:
                     self.do_gra = True
+                    break
+                elif c not in ['N','n']:
+                    print("Invalid choice!")
+                else:
+                    break
+
+            while not ch:
+                c = input("Regenerate word embeddings? (y/n):")
+                if c in ['Y','y']:
+                    self.do_w_embs = True
                     break
                 elif c not in ['N','n']:
                     print("Invalid choice!")
@@ -346,7 +362,8 @@ class DataPreprocessor(object):
 
             # Replace those that exist
             for j, line in enumerate(data):
-                print("line {0}".format(j))
+                if j%500 == 0:
+                    print("line {0}".format(j))
                 for k, word in enumerate(line):
                     if word in dash_words and word.replace('-','') in non_dashed:
                         data[j][k] = word.replace('-','')
@@ -364,7 +381,8 @@ class DataPreprocessor(object):
 
             # Replace the simple plurals with the singulars
             for k, line in enumerate(data):
-                print("Plurals - Line {0}".format(k))
+                if k%500 == 0:
+                    print("Plurals - Line {0}".format(k))
                 for l, word in enumerate(line):
                     if word in candidates and word[:-1] in singulars:
                         data[k][l] = word[:-1]
@@ -372,7 +390,8 @@ class DataPreprocessor(object):
         if singulars == True and auth == False:
             p = inflect.engine()
             for k,line in enumerate(data):
-                print("Plurals inflect - Line {0}".format(k))
+                if k%500 == 0:
+                    print("Plurals inflect - Line {0}".format(k))
                 for l, word in enumerate(line):
                     if p.singular_noun(word) == False:
                         continue
@@ -390,7 +409,8 @@ class DataPreprocessor(object):
                         not_inged.add(word)
 
             for k, line in enumerate(data):
-                print("inged - line {0}".format(k))
+                if k%500 == 0:
+                    print("inged - line {0}".format(k))
                 for l, word in enumerate(line):
                     if word in candidates and word.endswith('ed'):
                         if word[:-2] in not_inged:
@@ -406,6 +426,13 @@ class DataPreprocessor(object):
 
         return data
 
+    def read_corpus(self, docs, tokens_only=False):
+        for i, line in enumerate(docs):
+            if tokens_only:
+                yield gensim.utils.simple_preprocess(line)
+            else:
+                # For training data, add tags
+                yield gensim.models.doc2vec.TaggedDocument(gensim.utils.simple_preprocess(line), [i])
 
     def preprocess(self):
         self.read_train_data()
@@ -444,6 +471,30 @@ class DataPreprocessor(object):
             self.write_to_file(self.tr_cito,"datasets/train/outgoing_citations.csv")
             self.write_to_file(self.te_citi,"datasets/test/incoming_citations.csv")
             self.write_to_file(self.te_cito,"datasets/test/outgoing_citations.csv")
+
+        if self.do_w_embs:
+            import pdb
+            # pdb.set_trace()
+            doc_embs = Doc2Vec(min_count=1)
+            tr_abs_tit = [x + ' ' + y for x,y in zip(self.tr_abst,self.tr_titl)]
+            te_abs_tit = [x + ' ' + y for x,y in zip(self.te_abst,self.te_titl)]
+            tr_corpus = list(self.read_corpus(tr_abs_tit))
+            te_corpus = list(self.read_corpus(te_abs_tit))
+            trte_corpus = tr_corpus + te_corpus
+            doc_embs.build_vocab(trte_corpus)
+            doc_embs.train(trte_corpus,total_examples=doc_embs.corpus_count,epochs=2)
+            # pdb.set_trace()
+            self.tr_w_embs = [doc_embs.infer_vector(x[0]) for x in tr_corpus]
+            self.te_w_embs = [doc_embs.infer_vector(x[0]) for x in te_corpus]
+            # pdb.set_trace()
+
+            with open("datasets/train/word_embeddings.csv", "w") as f:
+                writer = csv.writer(f)
+                writer.writerows(self.tr_w_embs)
+
+            with open("datasets/test/word_embeddings.csv", "w") as f:
+                writer = csv.writer(f)
+                writer.writerows(self.te_w_embs)
 
         # Use the csv writer for the graph properties
         if self.do_gra:

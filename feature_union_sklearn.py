@@ -5,6 +5,7 @@
 # Modified by George Choumos
 
 from sklearn.base import BaseEstimator, TransformerMixin
+from settings import SETTINGS
 import numpy as np
 
 class ItemSelector(BaseEstimator, TransformerMixin):
@@ -24,8 +25,6 @@ class AuthorStats(BaseEstimator, TransformerMixin):
     def transform(self, lines):
         return [{
                     'length': len(line),
-                    #'num_authors': len([x for x in line.split()]),
-                    #'big_words': len([x for x in line.split() if len(x)>7]),
                 } for line in lines]
 
 class TextStats(BaseEstimator, TransformerMixin):
@@ -36,7 +35,6 @@ class TextStats(BaseEstimator, TransformerMixin):
         return [{
                     'length': len(line),
                     'num_digits': sum(c.isdigit() for c in line),
-                    #'big_words': len([x for x in line.split() if len(x)>7]),
                 } for line in lines]
 
 
@@ -53,6 +51,13 @@ class GraphProperties(BaseEstimator, TransformerMixin):
                 } for line in lines]
 
 class NodeEmbeddingsVectorizer(BaseEstimator, TransformerMixin):
+    def fit(self, x, y=None):
+        return self
+
+    def transform(self, lines):
+        return [[float(x) for x in line.split()] for line in lines]
+
+class WordEmbeddingsVectorizer(BaseEstimator, TransformerMixin):
     def fit(self, x, y=None):
         return self
 
@@ -76,6 +81,7 @@ class MainExtractor(BaseEstimator, TransformerMixin):
                                 ('graph_props', object),
                                 #('comm', object),
                                 ('embeddings', object),
+                                ('w_embeddings', object),
 							  ])
         for i, line in enumerate(lines):
             abstract = line[0]
@@ -86,7 +92,8 @@ class MainExtractor(BaseEstimator, TransformerMixin):
             cit_out = line[4]
             graph_props = [float(line[5]), float(line[6]), float(line[7])]#, int(line[8])]
             # comm = {'comm': int(line[8])}
-            embs = ' '.join([str(x) for x in line[9:]])
+            embs = ' '.join([str(x) for x in line[9:9+SETTINGS['node_embs_dim']]])
+            w_embs = ' '.join([str(x) for x in line[9+SETTINGS['node_embs_dim']:]])
 
             features['abstract'][i] = abstract if abstract==abstract else ''
             features['title'][i] = title if title==title else ''
@@ -97,7 +104,8 @@ class MainExtractor(BaseEstimator, TransformerMixin):
             features['abstract_title'][i] = abs_tit if abs_tit==abs_tit else ''
             # features['comm'][i] = comm if comm==comm else -1
             features['embeddings'][i] = embs
+            features['w_embeddings'][i] = w_embs
 
-        #print("Features shape is {0}".format(features.shape))
-        #print("{0}".format(features[0]))
+        # print("Features shape is {0}".format(features.shape))
+        # print("{0}".format(features[0]))
         return features
