@@ -1,33 +1,30 @@
 import pandas as pd
 import numpy as np
 import csv
-import logging
-logging.basicConfig(format='%(levelname)s : %(message)s', level=logging.INFO)
 
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.feature_selection import SelectFromModel
-from sklearn.linear_model import SGDClassifier, LogisticRegression
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import GridSearchCV
-from sklearn.pipeline import Pipeline, FeatureUnion, make_union
-from sklearn.metrics import make_scorer, log_loss
-from sklearn.neural_network import MLPClassifier
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.svm import NuSVC, SVC
-from sklearn.tree import DecisionTreeClassifier
-from feature_union_sklearn import ItemSelector, TextStats, AuthorStats, MainExtractor, GraphProperties, NodeEmbeddingsVectorizer, WordEmbeddingsVectorizer
-import pdb
-
+from sklearn.pipeline import FeatureUnion, Pipeline
+from sklearn.metrics import log_loss, make_scorer
+from feature_union_sklearn import (
+                            GraphProperties,
+                            ItemSelector,
+                            MainExtractor,
+                            NodeEmbeddingsVectorizer,
+                            TextStats,AuthorStats,
+                            WordEmbeddingsVectorizer
+                        )
 from data_preprocessor import DataPreprocessor
-
-pd.options.mode.chained_assignment = None  # default='warn'
+from collections import Counter
 
 import math
 import random
-from collections import Counter
+
+pd.options.mode.chained_assignment = None  # default='warn'
 
 ch = False
 while not ch:
@@ -92,38 +89,6 @@ with open('train.csv', 'r') as f:
 
 labels = np.unique(y_train)
 
-#######################
-# MANUAL OVERSAMPLING #
-#######################
-# y_t_counts = Counter(y_train)
-# print("Class Frequencies:")
-# for i, j in enumerate(y_t_counts):
-#     # Print proportions (percentage)
-#     print("{1:.2f}: {0} - {2}".format(j,y_t_counts[j]*100/len(y_train),math.ceil(y_t_counts[j]*100/len(y_train))))
-
-# y_t_indices = list()
-# for i,j in enumerate(y_t_counts):
-#     y_t_indices.append(np.random.choice([k for k,l in enumerate(y_train) if j == l],4*math.ceil(y_t_counts[j]*100/len(y_train))))
-
-# # Now flatten the list
-# indices = [x for sublist in y_t_indices for x in sublist]
-# print("We are adding {0} extra datapoints".format(len(indices)))
-
-# More training data with resampling (add k lines)
-# indices = np.random.randint(0,all_train.shape[0],100) # 1.913 (train)  -- 1.81707  (kaggle)
-# balanced: 114 datapoints - 1.913 (train)  -- not submitted (kaggle)
-#indices = np.random.randint(0,all_train.shape[0],200) # 1.902 (train)  -- 1.81743  (kaggle)
-# balanced: 228 datapoints - 1.898 (train)  -- not submitted (kaggle)
-#indices = np.random.randint(0,all_train.shape[0],400) # 1.879 (train)   -- 1.81339  (kaggle)
-# balanced: 456 datapoints - 1.866 (train)  -- 1.81954 (kaggle)
-#indices = np.random.randint(0,all_train.shape[0],800) # 1.835 (train)   -- 1.81956  (kaggle)
-#indices = random.sample(range(all_train.shape[0]),800) # 1.828 (train)  -- 1.81782  (kaggle)
-#indices = np.random.randint(0,all_train.shape[0],1000) # lol = 1.809 (train)
-
-#all_train = np.append(all_train,all_train[indices],axis=0)
-# Same for y_train
-#y_train = y_train + [y_train[i] for i in indices]
-
 #################
 # FEATURE UNION #
 #################
@@ -154,6 +119,7 @@ pipeline = Pipeline([
             #     ('sfm_abs', SelectFromModel(logr_abs,threshold=thres_all)),
             # ])),
 
+            # I decided to weight them separately as it led to a predicition performance boost
             ('abstract_title_uni', Pipeline([
                 ('selector', ItemSelector(key='abstract_title')), # min: None, max: 0.5 --> 1.924 (started with min_df: 0.001 max_df: 0.6)
                 ('vect', CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.5, min_df=0,ngram_range=(1,1))),
@@ -168,7 +134,6 @@ pipeline = Pipeline([
                 ('sfm_abs_bi', SelectFromModel(logr_abs,threshold=thres_all)),
             ])),
 
-            ###### REMOVE THIS ########
             ('abstract_title_tri', Pipeline([
                 ('selector', ItemSelector(key='abstract_title')), # --> 1.91869
                 ('vect', CountVectorizer(decode_error='ignore', stop_words='english', max_df=0.6, min_df=0.0001,ngram_range=(3,3))),
@@ -182,7 +147,6 @@ pipeline = Pipeline([
                 ('tfidf', TfidfTransformer(norm='l2',sublinear_tf=True)),
                 ('sfm_abs_quad', SelectFromModel(logr_abs,threshold=thres_all)),
             ])),
-            ####### UNTIL HERE ########
 
             # Pipeline for pulling features from authors
             ('author', Pipeline([
@@ -192,7 +156,7 @@ pipeline = Pipeline([
                 ('sfm_aut', SelectFromModel(logr_aut,threshold=0.55)),
             ])),
 
-            # Pipeline for pulling features from authors
+            # Pipeline for pulling features from Incoming Citations
             ('incoming_citations', Pipeline([
                 ('selector', ItemSelector(key='cit_in')),
                 ('vect', CountVectorizer(decode_error='ignore')),
@@ -200,6 +164,7 @@ pipeline = Pipeline([
                 ('sfm_citi', SelectFromModel(logr_cit_in,threshold=0.15)),
             ])),
 
+            # Outgoing Citations
             ('outgoing_citations', Pipeline([
                 ('selector', ItemSelector(key='cit_out')),
                 ('vect', CountVectorizer(decode_error='ignore')),
@@ -228,6 +193,7 @@ pipeline = Pipeline([
                ('vect_aut_stats', DictVectorizer()),
             ])),
 
+            # Word embeddings from abstracts give a nice boost as well
             ('abs_embeddings', Pipeline([
                 ('selector', ItemSelector(key='w_embeddings')),
                 ('word_embs_vect', WordEmbeddingsVectorizer()),
@@ -241,6 +207,7 @@ pipeline = Pipeline([
                ('sfm_embs', SelectFromModel(logr_embs,threshold=thres_all)),
             ])),
 
+            # No improvement was offered by the communities
             # ('communities', Pipeline([
             #     ('selector', ItemSelector(key='comm')),
             #     ('vect_comms', DictVectorizer()),
@@ -248,38 +215,32 @@ pipeline = Pipeline([
             # ])),
         ],
 
-        # weight components in FeatureUnion
+        # Weight components in FeatureUnion - Here are the optimals
         transformer_weights={
-            'abstract': 1.65,
-            'abstract_title': 1.65,
-            'abstract_title_uni': 1.30, # 1.30 --> 1.910245
-            'abstract_title_bi': 0.75,  # 0.75 --> 1.910245
-            'abstract_title_tri': 1.05, # 1.05 --> 1.910245
-            'abstract_title_quad': 0.75,# 0.75 --> 1.910245
-            'author': 1.60,             # 1.60 --> 1.910245
-            # 'abs_stats': 0.3,         # None --> 1.910245
-            'incoming_citations': 1.20, # 1.20 --> 1.910245
-            'outgoing_citations': 1.30, # 1.30 --> 1.910245
-            'gprops': 0.70,             # None --> 1.910245
-            # 'aut_stats': 0.30,        # None --> 1.910245
-            #'communities': 8,
-            'node_embeddings': 0.35,    # 0.35 --> 1.910245
-            'abs_embeddings': 0.35,     # 0.35 --> 1.910245
-            # best node embs with
-            #   num_walks       10
-            #   walk length     20
-            #   epochs (iter):  4
+            'abstract_title_uni':   1.30,
+            'abstract_title_bi':    0.75,
+            'abstract_title_tri':   1.05,
+            'abstract_title_quad':  0.75,
+            'author':               1.60,
+            'incoming_citations':   1.20,
+            'outgoing_citations':   1.30,
+            'gprops':               0.70,
+            'node_embeddings':      0.35,
+            'abs_embeddings':       0.35,
         },
     )),
 
-    ('logr', LogisticRegression(penalty='l2', tol=0.0001)), # C= r
+    ('logr', LogisticRegression(penalty='l2', tol=0.0001)),
 ])
 
 # uncommenting more parameters will give better exploring power but will
 # increase processing time in a combinatorial way
 parameters = {
+    # This is now empty, as I kept the best parameters. It is still needed though
+    # as it is a mandatory argumetn for the grid search below.
 }
 
+# The default scorer is the accuracy, but we want the log loss in our case.
 log_loss_scorer = make_scorer(log_loss, greater_is_better=False, needs_proba=True)
 grid_search = GridSearchCV(pipeline, parameters, n_jobs=-1, verbose=10,scoring=log_loss_scorer)
 grid_search.fit(all_train,y_train)
@@ -300,7 +261,7 @@ x_test = np.hstack((x_test, te_embs))
 x_test = np.hstack((x_test, te_w_embs))
 
 print("Best score: %0.3f" % grid_search.best_score_)
-print("Best parameters set:")
+print("Best parameters set:") # Will output nothing now that the parameters  dict is empty.
 best_parameters = grid_search.best_estimator_.get_params()
 for param_name in sorted(parameters.keys()):
     print("\t%s: %r" % (param_name, best_parameters[param_name]))
