@@ -96,14 +96,12 @@ labels = np.unique(y_train)
 # estimators has been deprecated in scikit learn. So we are
 # going to go with SelectFromModel
 logr_abs = LogisticRegression(penalty='l2', tol=1e-05)
-logr_tit = LogisticRegression(penalty='l2', tol=1e-05)
 logr_aut = LogisticRegression(penalty='l2', tol=1e-05)
 logr_cit_in = LogisticRegression(penalty='l2', tol=1e-05)
 logr_cit_out = LogisticRegression(penalty='l2', tol=1e-05)
-logr_gprops = LogisticRegression(penalty='l2', tol=1e-05)
-logr_comm = LogisticRegression(penalty='l2', tol=1e-05)
 logr_embs = LogisticRegression(penalty='l2', tol=1e-05)
 logr_w_embs = LogisticRegression(penalty='l2', tol=1e-05)
+# logr_comm = LogisticRegression(penalty='l2', tol=1e-05)
 
 thres_all = None
 pipeline = Pipeline([
@@ -236,8 +234,8 @@ pipeline = Pipeline([
 # uncommenting more parameters will give better exploring power but will
 # increase processing time in a combinatorial way
 parameters = {
-    # This is now empty, as I kept the best parameters. It is still needed though
-    # as it is a mandatory argumetn for the grid search below.
+    # This is now empty, as I kept the best parameters. It is still required
+    # as a mandatory positional argument for the grid search.
 }
 
 # The default scorer is the accuracy, but we want the log loss in our case.

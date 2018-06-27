@@ -1,31 +1,16 @@
 """
     TODO:
-        - Try removing the words that consist of digits only.
-        - We might want to remove the 'University' word as it appears
-          in a lot of documents.
-        - The names should be removed... They create too much noise
+        - The common names might need to be removed. They create too much noise.
 
-    Common Names:
-        David
-        Lee
-        Kim
-        Alex
-        Michael
-        Martin
-        Park
-        Sergei
-        John
-        Lu
-        Institute
-        er
-        Yu
+    Most Common Names:
+        David, Lee, Kim, Alex, Michael, Martin, Park, Sergei, John,
+        Lu, Institute, er, Yu
 
 Taken with
-tr -c '[:alnum:]' '[\n*]' < datasets/train/authors.csv | sort | uniq -c | sort -nr | head  -10
+tr -c '[:alnum:]' '[\n*]' < datasets/train/authors.csv | sort | uniq -c | sort -nr | head  -13
 """
 
 from gensim.parsing.preprocessing import STOPWORDS
-from networkx.algorithms import approximation as apxa
 from settings import SETTINGS
 import networkx as nx
 import pandas as pd
@@ -41,7 +26,7 @@ from gensim.models import Word2Vec, Doc2Vec
 
 
 class DataPreprocessor(object):
-    """ """
+
     def __init__(self):
         self.data_file = SETTINGS['main_data']
         self.train_file = SETTINGS['train_file']

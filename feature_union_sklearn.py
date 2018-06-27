@@ -1,8 +1,8 @@
 # Author: Matt Terry <matt.terry@gmail.com>
 #
 # License: BSD 3 clause
-
-# Modified by George Choumos
+#
+# This is a modified version by George Choumos <g.choumos@gmail.com>
 
 from sklearn.base import BaseEstimator, TransformerMixin
 from settings import SETTINGS
@@ -36,7 +36,6 @@ class TextStats(BaseEstimator, TransformerMixin):
                     'length': len(line),
                     'num_digits': sum(c.isdigit() for c in line),
                 } for line in lines]
-
 
 class GraphProperties(BaseEstimator, TransformerMixin):
     def fit(self, x, y=None):
@@ -90,7 +89,7 @@ class MainExtractor(BaseEstimator, TransformerMixin):
             author = line[2]
             cit_in = line[3]
             cit_out = line[4]
-            graph_props = [float(line[5]), float(line[6]), float(line[7])]#, int(line[8])]
+            graph_props = [float(line[5]), float(line[6]), float(line[7])]
             # comm = {'comm': int(line[8])}
             embs = ' '.join([str(x) for x in line[9:9+SETTINGS['node_embs_dim']]])
             w_embs = ' '.join([str(x) for x in line[9+SETTINGS['node_embs_dim']:]])
